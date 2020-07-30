@@ -110,20 +110,16 @@ class Brain:
         for stim, areas in stim_to_area.items():
             if stim not in self.stimuli:
                 raise IndexError(stim + " not in brain.stimuli")
-                return
             for area in areas:
                 if area not in self.areas:
                     raise IndexError(area + " not in brain.areas")
-                    return
                 stim_in[area].append(stim)
         for from_area, to_areas in area_to_area.items():
             if from_area not in self.areas:
                 raise IndexError(from_area + " not in brain.areas")
-                return
             for to_area in to_areas:
                 if to_area not in self.areas:
                     raise IndexError(to_area + " not in brain.areas")
-                    return
                 area_in[to_area].append(from_area)
 
         to_update = set().union(list(stim_in.keys()), list(area_in.keys()))

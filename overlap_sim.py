@@ -132,4 +132,5 @@ def overlap_grand_sim(n=100000, k=317, p=0.01, beta=0.05, min_iter=10,
         print("t=" + str(i) + " : " + str(assembly_overlap) + " -> " + str(
             proj_overlap) + "\n")
         results[assembly_overlap] = proj_overlap
+    bu.sim_save('overlap_results', results)
     return results

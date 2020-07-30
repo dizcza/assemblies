@@ -10,6 +10,7 @@
 
 import copy
 import random
+from pathlib import Path
 from collections import OrderedDict
 
 import matplotlib.pyplot as plt
@@ -17,6 +18,7 @@ import numpy as np
 
 import brain
 import brain_util as bu
+from overlap_sim import overlap_grand_sim
 
 
 def project_sim(n=1000000, k=1000, p=0.01, beta=0.05, t=50):
@@ -36,6 +38,7 @@ def project_beta_sim(n=100000, k=317, p=0.01, t=100):
         print("Working on " + str(beta) + "\n")
         out = project_sim(n, k, p, beta, t)
         results[beta] = out
+    bu.sim_save('project_results', results)
     return results
 
 
@@ -146,6 +149,7 @@ def pattern_com_iterations(n=100000, k=317, p=0.01, beta=0.05, alpha=0.4,
             b_copy.project({}, {"A": ["A"]})
         o = bu.overlap(b_copy.areas["A"].winners, b.areas["A"].winners)
         results[i] = float(o) / float(k)
+    bu.sim_save('pattern_com_iterations', results)
     return results
 
 
@@ -233,6 +237,7 @@ def association_grand_sim(n=100000, k=317, p=0.01, beta=0.05, min_iter=10,
         b_copy2.project({}, {"B": ["C"]})
         o = bu.overlap(b_copy1.areas["C"].winners, b_copy2.areas["C"].winners)
         results[i] = float(o) / float(k)
+    bu.sim_save('association_results', results)
     return results
 
 
@@ -262,6 +267,7 @@ def merge_beta_sim(n=100000, k=317, p=0.01, t=100):
         print("Working on " + str(beta) + "\n")
         out = merge_sim(n, k, p, beta=beta, max_t=t)
         results[beta] = out
+    bu.sim_save('merge_betas', results)
     return results
 
 
@@ -270,9 +276,12 @@ def merge_beta_sim(n=100000, k=317, p=0.01, t=100):
 
 def plot_project_sim(show=True, save="", show_legend=False,
                      use_text_font=True):
+    if not Path('project_results').exists():
+        project_beta_sim()
+
     results = bu.sim_load('project_results')
     # fonts
-    if (use_text_font):
+    if use_text_font:
         plt.rcParams['mathtext.fontset'] = 'stix'
         plt.rcParams['font.family'] = 'STIXGeneral'
 
@@ -306,10 +315,12 @@ def plot_project_sim(show=True, save="", show_legend=False,
 
 
 def plot_merge_sim(show=True, save="", show_legend=False, use_text_font=True):
-    # results = merge_sim(n=100, k=10)
+    if not Path('merge_betas').exists():
+        merge_beta_sim()
+
     results = bu.sim_load('merge_betas')
     # fonts
-    if (use_text_font):
+    if use_text_font:
         plt.rcParams['mathtext.fontset'] = 'stix'
         plt.rcParams['font.family'] = 'STIXGeneral'
 
@@ -340,8 +351,11 @@ def plot_merge_sim(show=True, save="", show_legend=False, use_text_font=True):
 
 
 def plot_association(show=True, save="", use_text_font=True):
+    if not Path('association_results').exists():
+        association_grand_sim()
+
     results = bu.sim_load('association_results')
-    if (use_text_font):
+    if use_text_font:
         plt.rcParams['mathtext.fontset'] = 'stix'
         plt.rcParams['font.family'] = 'STIXGeneral'
 
@@ -357,8 +371,11 @@ def plot_association(show=True, save="", use_text_font=True):
 
 
 def plot_pattern_com(show=True, save="", use_text_font=True):
+    if not Path('pattern_com_iterations').exists():
+        pattern_com_iterations()
+
     results = bu.sim_load('pattern_com_iterations')
-    if (use_text_font):
+    if use_text_font:
         plt.rcParams['mathtext.fontset'] = 'stix'
         plt.rcParams['font.family'] = 'STIXGeneral'
 
@@ -374,8 +391,11 @@ def plot_pattern_com(show=True, save="", use_text_font=True):
 
 
 def plot_overlap(show=True, save="", use_text_font=True):
+    if not Path('overlap_results').exists():
+        overlap_grand_sim()
+
     results = bu.sim_load('overlap_results')
-    if (use_text_font):
+    if use_text_font:
         plt.rcParams['mathtext.fontset'] = 'stix'
         plt.rcParams['font.family'] = 'STIXGeneral'
 
@@ -417,19 +437,23 @@ def density_sim(n=100000, k=317, p=0.01,
         print("Working on " + str(beta) + "\n")
         out = density(n, k, p, beta)
         results[beta] = out
+    bu.sim_save('density_results', results)
     return results
 
 
 def plot_density_ee(show=True, save="", use_text_font=True):
-    if (use_text_font):
+    if not Path('density_results').exists():
+        density_sim()
+
+    if use_text_font:
         plt.rcParams['mathtext.fontset'] = 'stix'
         plt.rcParams['font.family'] = 'STIXGeneral'
     od = bu.sim_load('density_results')
     plt.xlabel(r'$\beta$')
     plt.ylabel(r'assembly $p$')
     plt.plot(list(od.keys()), list(od.values()), linewidth=0.7)
-    plt.plot([0, 0.06], [0.01, 0.01], color='red', linestyle='dashed',
-             linewidth=0.7)
+    plt.plot(list(od.keys()), [0.01] * len(od), color='red',
+             linestyle='dashed', linewidth=0.7)
     if show:
         plt.show()
     if not show and save != "":
@@ -437,4 +461,9 @@ def plot_density_ee(show=True, save="", use_text_font=True):
 
 
 if __name__ == '__main__':
+    plot_project_sim()
     plot_merge_sim()
+    plot_association()
+    plot_pattern_com()
+    plot_overlap()
+    plot_density_ee()
