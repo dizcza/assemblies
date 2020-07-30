@@ -14,6 +14,8 @@ pip install -r requirements.txt
 python simulations.py
 ```
 
+Figures will be saved in the `plots/` directory.
+
 ## Original README
 
 This repository contains code for simulating operations in the assembly model of brain computation.

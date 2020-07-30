@@ -297,12 +297,11 @@ def plot_project_sim(show=True, save="", show_legend=False,
     results.pop(0.007)
     od = OrderedDict(sorted(results.items()))
     x = np.arange(100)
-    print(x)
+    fig, ax = plt.subplots()
     for key, val in od.items():
         plt.plot(x, val, linewidth=0.7)
     if show_legend:
         plt.legend(list(od.keys()), loc='upper left')
-    ax = plt.axes()
     ax.set_xticks([0, 10, 20, 50, 100])
     k = 317
     plt.yticks([k, 2 * k, 5 * k, 10 * k, 13 * k],
@@ -336,11 +335,11 @@ def plot_merge_sim(show=True, save="", show_legend=False, use_text_font=True):
 
     od = OrderedDict(sorted(results.items()))
     x = np.arange(101)
+    fig, ax = plt.subplots()
     for key, val in od.items():
         plt.plot(x, val, linewidth=0.7)
     if show_legend:
         plt.legend(list(od.keys()), loc='upper left')
-    ax = plt.axes()
     ax.set_xticks([0, 10, 20, 50, 100])
     k = 317
     plt.yticks([k, 2 * k, 5 * k, 10 * k, 13 * k],
@@ -372,10 +371,11 @@ def plot_association(show=True, save="", use_text_font=True):
         plt.rcParams['font.family'] = 'STIXGeneral'
 
     od = OrderedDict(sorted(results.items()))
-    plt.plot(list(od.keys()), list(od.values()), linewidth=0.7)
-    ax = plt.axes()
-    plt.yticks([0.1, 0.2, 0.3, 0.4, 0.5], ["10%", "20%", "30%", "40%", "50%"])
-    plt.xlabel(r'$t$')
+    fig, ax = plt.subplots()
+    ax.plot(list(od.keys()), list(od.values()), linewidth=0.7)
+    ax.set_yticks([0.1, 0.2, 0.3, 0.4, 0.5],
+                  ["10%", "20%", "30%", "40%", "50%"])
+    ax.set_xlabel(r'$t$')
     if show:
         plt.show()
     if not show and save != "":
@@ -394,10 +394,10 @@ def plot_pattern_com(show=True, save="", use_text_font=True):
         plt.rcParams['font.family'] = 'STIXGeneral'
 
     od = OrderedDict(sorted(results.items()))
-    plt.plot(list(od.keys()), list(od.values()), linewidth=0.7)
-    ax = plt.axes()
-    plt.yticks([0, 0.25, 0.5, 0.75, 1], ["0%", "25%", "50%", "75%", "100%"])
-    plt.xlabel(r'$t$')
+    fig, ax = plt.subplots()
+    ax.plot(list(od.keys()), list(od.values()), linewidth=0.7)
+    ax.set_yticks([0, 0.25, 0.5, 0.75, 1], ["0%", "25%", "50%", "75%", "100%"])
+    ax.set_xlabel(r'$t$')
     if show:
         plt.show()
     if not show and save != "":
@@ -416,13 +416,13 @@ def plot_overlap(show=True, save="", use_text_font=True):
         plt.rcParams['font.family'] = 'STIXGeneral'
 
     od = OrderedDict(sorted(results.items()))
-    plt.plot(list(od.keys()), list(od.values()), linewidth=0.7)
-    ax = plt.axes()
-    plt.xticks([0, 0.2, 0.4, 0.6, 0.8], ["", "20%", "40%", "60%", "80%"])
-    plt.xlabel('overlap (assemblies)')
-    plt.yticks([0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3],
-               ["", "5%", "10%", "15%", "20%", "25%", "30%"])
-    plt.ylabel('overlap (projections)')
+    fig, ax = plt.subplots()
+    ax.plot(list(od.keys()), list(od.values()), linewidth=0.7)
+    ax.set_xticks([0, 0.2, 0.4, 0.6, 0.8], ["", "20%", "40%", "60%", "80%"])
+    ax.set_xlabel('overlap (assemblies)')
+    ax.set_yticks([0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3],
+                  ["", "5%", "10%", "15%", "20%", "25%", "30%"])
+    ax.set_ylabel('overlap (projections)')
     if show:
         plt.show()
     if not show and save != "":
@@ -467,11 +467,12 @@ def plot_density_ee(show=True, save="", use_text_font=True):
         plt.rcParams['mathtext.fontset'] = 'stix'
         plt.rcParams['font.family'] = 'STIXGeneral'
     od = bu.sim_load(DENSITY_RESULTS_PATH)
-    plt.xlabel(r'$\beta$')
-    plt.ylabel(r'assembly $p$')
-    plt.plot(list(od.keys()), list(od.values()), linewidth=0.7)
-    plt.plot(list(od.keys()), [0.01] * len(od), color='red',
-             linestyle='dashed', linewidth=0.7)
+    fig, ax = plt.subplots()
+    ax.set_xlabel(r'$\beta$')
+    ax.set_ylabel(r'assembly $p$')
+    ax.plot(list(od.keys()), list(od.values()), linewidth=0.7)
+    ax.plot(list(od.keys()), [0.01] * len(od), color='red',
+            linestyle='dashed', linewidth=0.7)
     if show:
         plt.show()
     if not show and save != "":
@@ -480,10 +481,38 @@ def plot_density_ee(show=True, save="", use_text_font=True):
         plt.savefig(save)
 
 
+def plot_mpi_accelerated():
+    # Usage:
+    #   conda install -c conda-forge mpi4py
+    #   mpiexec -n 4 python -m mpi4py simulations.py
+    #
+    # This file should end with:
+    # if __name__ == '__main__':
+    #     plot_mpi_accelerated()
+
+    from mpi4py import MPI
+    import math
+
+    comm = MPI.COMM_WORLD
+    comm_size = comm.Get_size()
+    rank = comm.Get_rank()
+
+    plotting_functions = (plot_project_sim, plot_merge_sim, plot_association,
+                          plot_pattern_com, plot_overlap, plot_density_ee)
+
+    n_epochs = math.ceil(len(plotting_functions) / comm_size)
+    for epoch in range(n_epochs):
+        func_id = epoch * comm_size + rank
+        if func_id < len(plotting_functions):
+            func = plotting_functions[func_id]
+            func(show=False, save=f"plots/{func.__name__}.png")
+
+
 if __name__ == '__main__':
-    plot_project_sim(show=False, save='plots/project_sim.png')
-    plot_merge_sim(show=False, save='plots/merge_sim.png')
-    plot_association(show=False, save='plots/association.png')
-    plot_pattern_com(show=False, save='plots/pattern_com.png')
-    plot_overlap(show=False, save='plots/overlap.png')
-    plot_density_ee(show=False, save='plots/density_ee.png')
+    # plot_mpi_accelerated()
+    plot_project_sim(show=False, save='plots/plot_project_sim.png')
+    plot_merge_sim(show=False, save='plots/plot_merge_sim.png')
+    plot_association(show=False, save='plots/plot_association.png')
+    plot_pattern_com(show=False, save='plots/plot_pattern_com.png')
+    plot_overlap(show=False, save='plots/plot_overlap.png')
+    plot_density_ee(show=False, save='plots/plot_density_ee.png')
