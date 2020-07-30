@@ -311,6 +311,8 @@ def plot_project_sim(show=True, save="", show_legend=False,
     if show:
         plt.show()
     if not show and save != "":
+        save = Path(save)
+        save.parent.mkdir(exist_ok=True)
         plt.savefig(save)
 
 
@@ -347,6 +349,8 @@ def plot_merge_sim(show=True, save="", show_legend=False, use_text_font=True):
     if show:
         plt.show()
     if not show and save != "":
+        save = Path(save)
+        save.parent.mkdir(exist_ok=True)
         plt.savefig(save)
 
 
@@ -367,6 +371,8 @@ def plot_association(show=True, save="", use_text_font=True):
     if show:
         plt.show()
     if not show and save != "":
+        save = Path(save)
+        save.parent.mkdir(exist_ok=True)
         plt.savefig(save)
 
 
@@ -387,6 +393,8 @@ def plot_pattern_com(show=True, save="", use_text_font=True):
     if show:
         plt.show()
     if not show and save != "":
+        save = Path(save)
+        save.parent.mkdir(exist_ok=True)
         plt.savefig(save)
 
 
@@ -410,6 +418,8 @@ def plot_overlap(show=True, save="", use_text_font=True):
     if show:
         plt.show()
     if not show and save != "":
+        save = Path(save)
+        save.parent.mkdir(exist_ok=True)
         plt.savefig(save)
 
 
@@ -457,13 +467,15 @@ def plot_density_ee(show=True, save="", use_text_font=True):
     if show:
         plt.show()
     if not show and save != "":
+        save = Path(save)
+        save.parent.mkdir(exist_ok=True)
         plt.savefig(save)
 
 
 if __name__ == '__main__':
-    plot_project_sim()
-    plot_merge_sim()
-    plot_association()
-    plot_pattern_com()
-    plot_overlap()
-    plot_density_ee()
+    plot_project_sim(show=False, save='plots/project_sim.png')
+    plot_merge_sim(show=False, save='plots/merge_sim.png')
+    plot_association(show=False, save='plots/association.png')
+    plot_pattern_com(show=False, save='plots/pattern_com.png')
+    plot_overlap(show=False, save='plots/overlap.png')
+    plot_density_ee(show=False, save='plots/density_ee.png')
