@@ -14,7 +14,10 @@ pip install -r requirements.txt
 python simulations.py
 ```
 
-Figures will be saved in the `plots/` directory.
+Figures will be saved in the `plots` directory.
+
+If you want to reproduce the figures from scratch, delete the `results` folder
+before running the simulations.
 
 ## Original README
 
