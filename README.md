@@ -1,6 +1,6 @@
 # Assembly Calculus
 
-The reproducible version of the Assembly Calculus ([Papadimitrioua et al., 2020](https://www.pnas.org/content/pnas/early/2020/06/08/2001893117.full.pdf)).
+The reproducible version of the Assembly Calculus ([Papadimitrioua et al., 2020](https://www.pnas.org/content/pnas/early/2020/06/08/2001893117.full.pdf)) with the minimum invasion of the [original repository](https://github.com/dmitropolsky/assemblies).
 
 ### Installation
 

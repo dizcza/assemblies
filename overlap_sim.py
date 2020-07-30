@@ -21,9 +21,12 @@
 # Now with 4th area D: proj(proj(x,C),D) and proj(proj(y,C),D) for 1 time step
 
 import copy
+from pathlib import Path
 
 import brain
 import brain_util as bu
+
+OVERLAP_RESULTS_PATH = Path(__file__).absolute().with_name("results") / 'overlap_results'
 
 
 def overlap_sim(n=100000, k=317, p=0.05, beta=0.1, project_iter=10):
@@ -132,5 +135,5 @@ def overlap_grand_sim(n=100000, k=317, p=0.01, beta=0.05, min_iter=10,
         print("t=" + str(i) + " : " + str(assembly_overlap) + " -> " + str(
             proj_overlap) + "\n")
         results[assembly_overlap] = proj_overlap
-    bu.sim_save('overlap_results', results)
+    bu.sim_save(OVERLAP_RESULTS_PATH, results)
     return results

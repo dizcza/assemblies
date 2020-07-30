@@ -1,4 +1,4 @@
 .idea/
 plots/
+results/
 *.pyc
-*_results

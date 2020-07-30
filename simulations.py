@@ -18,7 +18,15 @@ import numpy as np
 
 import brain
 import brain_util as bu
-from overlap_sim import overlap_grand_sim
+from overlap_sim import overlap_grand_sim, OVERLAP_RESULTS_PATH
+
+RESULTS_DIR = Path(__file__).absolute().with_name("results")
+
+PROJECT_RESULTS_PATH = RESULTS_DIR / 'project_results'
+MERGE_BETAS_PATH = RESULTS_DIR / 'merge_betas'
+ASSOCIATION_RESULTS_PATH = RESULTS_DIR / 'association_results'
+PATTERN_COM_ITERATIONS_PATH = RESULTS_DIR / 'pattern_com_iterations'
+DENSITY_RESULTS_PATH = RESULTS_DIR / 'density_results'
 
 
 def project_sim(n=1000000, k=1000, p=0.01, beta=0.05, t=50):
@@ -38,7 +46,7 @@ def project_beta_sim(n=100000, k=317, p=0.01, t=100):
         print("Working on " + str(beta) + "\n")
         out = project_sim(n, k, p, beta, t)
         results[beta] = out
-    bu.sim_save('project_results', results)
+    bu.sim_save(PROJECT_RESULTS_PATH, results)
     return results
 
 
@@ -149,7 +157,7 @@ def pattern_com_iterations(n=100000, k=317, p=0.01, beta=0.05, alpha=0.4,
             b_copy.project({}, {"A": ["A"]})
         o = bu.overlap(b_copy.areas["A"].winners, b.areas["A"].winners)
         results[i] = float(o) / float(k)
-    bu.sim_save('pattern_com_iterations', results)
+    bu.sim_save(PATTERN_COM_ITERATIONS_PATH, results)
     return results
 
 
@@ -237,7 +245,7 @@ def association_grand_sim(n=100000, k=317, p=0.01, beta=0.05, min_iter=10,
         b_copy2.project({}, {"B": ["C"]})
         o = bu.overlap(b_copy1.areas["C"].winners, b_copy2.areas["C"].winners)
         results[i] = float(o) / float(k)
-    bu.sim_save('association_results', results)
+    bu.sim_save(ASSOCIATION_RESULTS_PATH, results)
     return results
 
 
@@ -267,7 +275,7 @@ def merge_beta_sim(n=100000, k=317, p=0.01, t=100):
         print("Working on " + str(beta) + "\n")
         out = merge_sim(n, k, p, beta=beta, max_t=t)
         results[beta] = out
-    bu.sim_save('merge_betas', results)
+    bu.sim_save(MERGE_BETAS_PATH, results)
     return results
 
 
@@ -276,10 +284,10 @@ def merge_beta_sim(n=100000, k=317, p=0.01, t=100):
 
 def plot_project_sim(show=True, save="", show_legend=False,
                      use_text_font=True):
-    if not Path('project_results').exists():
+    if not PROJECT_RESULTS_PATH.exists():
         project_beta_sim()
 
-    results = bu.sim_load('project_results')
+    results = bu.sim_load(PROJECT_RESULTS_PATH)
     # fonts
     if use_text_font:
         plt.rcParams['mathtext.fontset'] = 'stix'
@@ -317,10 +325,10 @@ def plot_project_sim(show=True, save="", show_legend=False,
 
 
 def plot_merge_sim(show=True, save="", show_legend=False, use_text_font=True):
-    if not Path('merge_betas').exists():
+    if not MERGE_BETAS_PATH.exists():
         merge_beta_sim()
 
-    results = bu.sim_load('merge_betas')
+    results = bu.sim_load(MERGE_BETAS_PATH)
     # fonts
     if use_text_font:
         plt.rcParams['mathtext.fontset'] = 'stix'
@@ -355,10 +363,10 @@ def plot_merge_sim(show=True, save="", show_legend=False, use_text_font=True):
 
 
 def plot_association(show=True, save="", use_text_font=True):
-    if not Path('association_results').exists():
+    if not ASSOCIATION_RESULTS_PATH.exists():
         association_grand_sim()
 
-    results = bu.sim_load('association_results')
+    results = bu.sim_load(ASSOCIATION_RESULTS_PATH)
     if use_text_font:
         plt.rcParams['mathtext.fontset'] = 'stix'
         plt.rcParams['font.family'] = 'STIXGeneral'
@@ -377,10 +385,10 @@ def plot_association(show=True, save="", use_text_font=True):
 
 
 def plot_pattern_com(show=True, save="", use_text_font=True):
-    if not Path('pattern_com_iterations').exists():
+    if not PATTERN_COM_ITERATIONS_PATH.exists():
         pattern_com_iterations()
 
-    results = bu.sim_load('pattern_com_iterations')
+    results = bu.sim_load(PATTERN_COM_ITERATIONS_PATH)
     if use_text_font:
         plt.rcParams['mathtext.fontset'] = 'stix'
         plt.rcParams['font.family'] = 'STIXGeneral'
@@ -399,10 +407,10 @@ def plot_pattern_com(show=True, save="", use_text_font=True):
 
 
 def plot_overlap(show=True, save="", use_text_font=True):
-    if not Path('overlap_results').exists():
+    if not OVERLAP_RESULTS_PATH.exists():
         overlap_grand_sim()
 
-    results = bu.sim_load('overlap_results')
+    results = bu.sim_load(OVERLAP_RESULTS_PATH)
     if use_text_font:
         plt.rcParams['mathtext.fontset'] = 'stix'
         plt.rcParams['font.family'] = 'STIXGeneral'
@@ -447,18 +455,18 @@ def density_sim(n=100000, k=317, p=0.01,
         print("Working on " + str(beta) + "\n")
         out = density(n, k, p, beta)
         results[beta] = out
-    bu.sim_save('density_results', results)
+    bu.sim_save(DENSITY_RESULTS_PATH, results)
     return results
 
 
 def plot_density_ee(show=True, save="", use_text_font=True):
-    if not Path('density_results').exists():
+    if not DENSITY_RESULTS_PATH.exists():
         density_sim()
 
     if use_text_font:
         plt.rcParams['mathtext.fontset'] = 'stix'
         plt.rcParams['font.family'] = 'STIXGeneral'
-    od = bu.sim_load('density_results')
+    od = bu.sim_load(DENSITY_RESULTS_PATH)
     plt.xlabel(r'$\beta$')
     plt.ylabel(r'assembly $p$')
     plt.plot(list(od.keys()), list(od.values()), linewidth=0.7)

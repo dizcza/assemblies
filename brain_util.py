@@ -1,8 +1,10 @@
 import pickle
+from pathlib import Path
 
 
 # Save obj (could be Brain object, list of saved winners, etc) as file_name
 def sim_save(file_name, obj):
+    Path(file_name).parent.mkdir(exist_ok=True)
     with open(file_name, 'wb') as f:
         pickle.dump(obj, f)
 
