@@ -1,6 +1,7 @@
+import numpy as np
 import torch
-from tqdm import trange
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 N_NEURONS = 1000
 K_ACTIVE = 50
@@ -17,9 +18,9 @@ def sample_uniform_masked(*size, proba: float):
     return x * mask
 
 
-def sample_k(n=N_NEURONS, k=K_ACTIVE):
+def sample_k_active(n=N_NEURONS, k=K_ACTIVE):
     k_indices = torch.randperm(n)[:k]
-    x = torch.ones(n)
+    x = torch.zeros(n)
     x[k_indices] = 1
     return x
 
@@ -51,85 +52,133 @@ class Area:
         self.weight_input /= self.weight_input.sum(dim=1, keepdim=True)
         self.weight_recurrent /= self.weight_recurrent.sum(dim=1, keepdim=True)
 
-    def update_weights_additive(self, x, y_out, y):
+    def update_weights_additive(self, x, y, y_latent=None):
         # w_ij = w_ij + learning_rate if x_ij and y_ij fired:
         # w_ij = w_ij + learning_rate * x_ij * y_ij
         self.weight_input.add_(
-            self.learning_rate * y_out.unsqueeze(1) * x.unsqueeze(0))
-        if y is not None:
+            self.learning_rate * y.unsqueeze(1) * x.unsqueeze(0))
+        if y_latent is not None:
             self.weight_recurrent.add_(
-                self.learning_rate * y_out.unsqueeze(1) * y.unsqueeze(0))
+                self.learning_rate * y.unsqueeze(1) * y_latent.unsqueeze(0))
 
-    def update_weights_multiplicative(self, x, y_out, y):
+    def update_weights_multiplicative(self, x, y, y_latent=None):
         # w_ij = w_ij * (1 + learning_rate) if x_ij and y_ij fired:
         # w_ij = w_ij * (1 + learning_rate * x_ij * y_ij)
         self.weight_input.mul_(
-            1 + self.learning_rate * y_out.unsqueeze(1) * x.unsqueeze(0))
-        if y is not None:
-            self.weight_recurrent.mul_(
-                1 + self.learning_rate * y_out.unsqueeze(1) * y.unsqueeze(0))
+            1 + self.learning_rate * y.unsqueeze(1) * x.unsqueeze(0))
+        if y_latent is not None:
+            self.weight_recurrent.mul_(1 + self.learning_rate *
+                                       y.unsqueeze(1) *
+                                       y_latent.unsqueeze(0))
 
-    def project(self, x: torch.Tensor, y: torch.Tensor = None, train=True):
+    def project(self, x: torch.Tensor, y_latent: torch.Tensor = None,
+                train=True) -> torch.Tensor:
         y_out = x.matmul(self.weight_input.t())
-        if y is not None:
-            y_out += self.recurrence * y.matmul(self.weight_recurrent.t())
+        if y_latent is not None:
+            y_out += self.recurrence * \
+                     y_latent.matmul(self.weight_recurrent.t())
         y_out = k_winners_take_all(y_out, k=K_ACTIVE)
         if train:
-            self.update_weights_additive(x=x, y_out=y_out, y=y)
+            self.update_weights_additive(x=x, y=y_out, y_latent=y_latent)
         return y_out
 
-    def complete_pattern(self, y_partial: torch.Tensor):
+    def recall(self, x: torch.Tensor) -> torch.Tensor:
+        if x.ndim == 1:
+            return self.project(x=x, y_latent=None, train=False)
+        ys = [self.project(x=xi, y_latent=None, train=False) for xi in x]
+        return torch.stack(ys)
+
+    def complete_pattern(self, y_partial: torch.Tensor) -> torch.Tensor:
         y = y_partial.matmul(self.weight_recurrent.t())
         y = k_winners_take_all(y, k=K_ACTIVE)
         return y
 
     def complete_from_input(self, x_partial: torch.Tensor,
-                            y: torch.Tensor = None):
+                            y_latent: torch.Tensor = None) -> torch.Tensor:
         y_out = x_partial.matmul(self.weight_input.t())
-        if y is not None:
-            y_out += self.recurrence * y.matmul(self.weight_recurrent.t())
+        if y_latent is not None:
+            y_out += self.recurrence * \
+                     y_latent.matmul(self.weight_recurrent.t())
         y_out = k_winners_take_all(y_out, k=K_ACTIVE)
         return y_out
 
 
 def project(x: torch.Tensor, area_B: Area, y: torch.Tensor = None):
-    return area_B.project(x=x, y=y)
+    return area_B.project(x=x, y_latent=y)
 
 
-def simulate(steps=100, epoch=10):
-    area = Area(in_features=N_NEURONS, out_features=N_NEURONS // 2)
-    x = sample_k(n=N_NEURONS, k=K_ACTIVE)
-    y_prev = None
-    # y_prev = torch.ones(area.weight_recurrent.shape[0])
-    overlaps = []
+def recall_overlap(xs: torch.Tensor, area: Area, ys_learned: torch.Tensor):
+    y_predicted = area.recall(xs)
+    recall = (y_predicted * ys_learned).sum(dim=1)
+    return recall
+
+
+def pairwise_similarity(tensors):
+    if not isinstance(tensors, torch.Tensor):
+        tensors = torch.stack(tensors)
+    similarity = tensors[1:].matmul(tensors[:-1].t())
+    similarity = similarity.mean() / K_ACTIVE
+    return similarity
+
+
+def simulate(n_samples=10, epoch_size=10):
+    area = Area(in_features=N_NEURONS, out_features=N_NEURONS // 2, learning_rate=0.1)
+    xs = [sample_k_active(n=N_NEURONS, k=K_ACTIVE) for _ in range(n_samples)]
+    xs = torch.stack(xs)
+    pairwise_similarity(xs)
+    ys_learned = []
+    overlaps_convergence = []
+    overlaps_learned = []  # recall
     memory_used = []
-    for t in trange(steps):
-        if t % epoch == 0:
-            area.normalize_weights()
-        y = area.project(x=x, y=y_prev)
-        if y_prev is not None:
-            overlap = y.matmul(y_prev)
-            # print(overlap)
-            overlaps.append(overlap)
-        y_prev = y
-        memory_used.append(area.memory_used())
+    for sample_count, x in enumerate(tqdm(xs, desc="Projecting"), start=1):
+        y_prev = None  # inhibit the area
+        for step in range(epoch_size):
+            y = area.project(x=x, y_latent=y_prev)
+            converged = False
+            if y_prev is None:
+                overlaps_convergence.append(np.nan)
+            else:
+                overlap = y.matmul(y_prev).item()
+                overlaps_convergence.append(overlap)
+                converged = overlap == K_ACTIVE
+            overlap_recall = recall_overlap(
+                xs[:sample_count],
+                area=area,
+                ys_learned=torch.stack(ys_learned + [y])
+            )
+            overlaps_learned.append(overlap_recall.mean())
+            memory_used.append(area.memory_used())
+            y_prev = y
+            if converged:
+                break
+        ys_learned.append(y_prev)
+        area.normalize_weights()
 
+    print(f"Learned assemblies similarity: "
+          f"{pairwise_similarity(ys_learned):.3f}, "
+          f"input: {pairwise_similarity(xs):.3f}")
     fig, axes = plt.subplots(nrows=2, ncols=1)
-    axes[0].plot(overlaps, label='overlap')
-    axes[0].set_title("overlap(y, y_prev)")
+
+    iterations = np.arange(len(overlaps_convergence))
+    axes[0].plot(iterations, overlaps_convergence,
+                 label='convergence (y, y_prev)', lw=3)
+    axes[0].plot(iterations, overlaps_learned,
+                 label='recall (y_pred, y_learned)', lw=1)
+    axes[0].set_ylabel("overlap")
     axes[0].set_xticks([])
     xmin, xmax = axes[0].get_xlim()
-    axes[0].axhline(y=K_ACTIVE, xmin=xmin, xmax=xmax, ls='--', color='black',
+    axes[0].axhline(y=K_ACTIVE, xmin=xmin, xmax=xmax, ls='--',
+                    color='black',
                     label='k active')
     axes[0].legend()
 
     wi, wr = zip(*memory_used)
-    axes[1].plot(wi, label='Input')
-    axes[1].plot(wr, label='Recurrent')
-    axes[1].set_title("Memory used")
+    axes[1].plot(iterations, wi, label='Input')
+    axes[1].plot(iterations, wr, label='Recurrent')
     axes[1].set_xlabel("Iteration")
-    axes[1].set_ylabel(r"$||w||_0$ / n_elements(w)")
+    axes[1].set_ylabel("Memory used")
     axes[1].legend()
+    plt.suptitle(f"{n_samples} learned samples")
     plt.show()
 
 
