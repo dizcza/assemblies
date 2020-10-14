@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
+from abc import ABC, abstractmethod
 from tqdm import tqdm
 
 N_NEURONS = 1000
@@ -32,21 +33,68 @@ def k_winners_take_all(x: torch.Tensor, k=K_ACTIVE):
     return y
 
 
-class Area:
+class Area(ABC):
     def __init__(self, in_features: int, out_features: int, p=0.01,
-                 recurrence=1, learning_rate=0.01):
+                 recurrence_coef=1):
         self.weight_input = sample_bernoulli(out_features, in_features,
                                              proba=p)
         self.weight_recurrent = sample_bernoulli(out_features, out_features,
                                                  proba=p)
-        self.recurrence = recurrence
-        self.learning_rate = learning_rate
+        self.recurrence_coef = recurrence_coef
         self.normalize_weights()
 
     def memory_used(self):
         wi = self.weight_input.norm(p=0) / self.weight_input.nelement()
         wr = self.weight_recurrent.norm(p=0) / self.weight_recurrent.nelement()
         return wi, wr
+
+    @abstractmethod
+    def normalize_weights(self):
+        pass
+
+    @abstractmethod
+    def update_weights(self, x: torch.Tensor, y: torch.Tensor,
+                       y_latent: torch.Tensor = None):
+        pass
+
+    def project(self, x: torch.Tensor, y_latent: torch.Tensor = None,
+                train=True) -> torch.Tensor:
+        y_out = x.matmul(self.weight_input.t())
+        if y_latent is not None:
+            y_out += self.recurrence_coef * \
+                     y_latent.matmul(self.weight_recurrent.t())
+        y_out = k_winners_take_all(y_out, k=K_ACTIVE)
+        if train:
+            self.update_weights(x=x, y=y_out, y_latent=y_latent)
+        return y_out
+
+    def recall(self, x: torch.Tensor) -> torch.Tensor:
+        if x.ndim == 1:
+            return self.project(x=x, y_latent=None, train=False)
+        ys = [self.project(x=xi, y_latent=None, train=False) for xi in x]
+        return torch.stack(ys)
+
+    def complete_pattern(self, y_partial: torch.Tensor) -> torch.Tensor:
+        y = y_partial.matmul(self.weight_recurrent.t())
+        y = k_winners_take_all(y, k=K_ACTIVE)
+        return y
+
+    def complete_from_input(self, x_partial: torch.Tensor,
+                            y_latent: torch.Tensor = None) -> torch.Tensor:
+        y_out = x_partial.matmul(self.weight_input.t())
+        if y_latent is not None:
+            y_out += self.recurrence_coef * \
+                     y_latent.matmul(self.weight_recurrent.t())
+        y_out = k_winners_take_all(y_out, k=K_ACTIVE)
+        return y_out
+
+
+class AreaHebb(Area):
+    def __init__(self, in_features: int, out_features: int, p=0.01,
+                 recurrence_coef=1, learning_rate=0.1):
+        super().__init__(in_features=in_features, out_features=out_features,
+                         p=p, recurrence_coef=recurrence_coef)
+        self.learning_rate = learning_rate
 
     def normalize_weights(self):
         self.weight_input /= self.weight_input.sum(dim=1, keepdim=True)
@@ -71,43 +119,34 @@ class Area:
                                        y.unsqueeze(1) *
                                        y_latent.unsqueeze(0))
 
-    def project(self, x: torch.Tensor, y_latent: torch.Tensor = None,
-                train=True) -> torch.Tensor:
-        y_out = x.matmul(self.weight_input.t())
+    def update_weights(self, x: torch.Tensor, y: torch.Tensor,
+                       y_latent: torch.Tensor = None):
+        self.update_weights_additive(x=x, y=y, y_latent=y_latent)
+
+
+class AreaWillshaw(AreaHebb):
+    """
+    Non-Holographic Associative Memory Area by Willshaw.
+    """
+
+    def update_weights(self, x: torch.Tensor, y: torch.Tensor,
+                       y_latent: torch.Tensor = None):
+        def update(weight, _x, _y):
+            weight += torch.ger(_y, _x)
+            weight.clamp_max_(1)
+        update(self.weight_input, x, y)
         if y_latent is not None:
-            y_out += self.recurrence * \
-                     y_latent.matmul(self.weight_recurrent.t())
-        y_out = k_winners_take_all(y_out, k=K_ACTIVE)
-        if train:
-            self.update_weights_additive(x=x, y=y_out, y_latent=y_latent)
-        return y_out
+            update(self.weight_recurrent, y_latent, y)
 
-    def recall(self, x: torch.Tensor) -> torch.Tensor:
-        if x.ndim == 1:
-            return self.project(x=x, y_latent=None, train=False)
-        ys = [self.project(x=xi, y_latent=None, train=False) for xi in x]
-        return torch.stack(ys)
-
-    def complete_pattern(self, y_partial: torch.Tensor) -> torch.Tensor:
-        y = y_partial.matmul(self.weight_recurrent.t())
-        y = k_winners_take_all(y, k=K_ACTIVE)
-        return y
-
-    def complete_from_input(self, x_partial: torch.Tensor,
-                            y_latent: torch.Tensor = None) -> torch.Tensor:
-        y_out = x_partial.matmul(self.weight_input.t())
-        if y_latent is not None:
-            y_out += self.recurrence * \
-                     y_latent.matmul(self.weight_recurrent.t())
-        y_out = k_winners_take_all(y_out, k=K_ACTIVE)
-        return y_out
+    def normalize_weights(self):
+        return
 
 
-def project(x: torch.Tensor, area_B: Area, y: torch.Tensor = None):
+def project(x: torch.Tensor, area_B: AreaHebb, y: torch.Tensor = None):
     return area_B.project(x=x, y_latent=y)
 
 
-def recall_overlap(xs: torch.Tensor, area: Area, ys_learned: torch.Tensor):
+def recall_overlap(xs: torch.Tensor, area: AreaHebb, ys_learned: torch.Tensor):
     y_predicted = area.recall(xs)
     recall = (y_predicted * ys_learned).sum(dim=1)
     return recall
@@ -122,7 +161,7 @@ def pairwise_similarity(tensors):
 
 
 def simulate(n_samples=10, epoch_size=10):
-    area = Area(in_features=N_NEURONS, out_features=N_NEURONS // 2, learning_rate=0.1)
+    area = AreaWillshaw(in_features=N_NEURONS, out_features=N_NEURONS // 2)
     xs = [sample_k_active(n=N_NEURONS, k=K_ACTIVE) for _ in range(n_samples)]
     xs = torch.stack(xs)
     pairwise_similarity(xs)
@@ -161,22 +200,22 @@ def simulate(n_samples=10, epoch_size=10):
 
     iterations = np.arange(len(overlaps_convergence))
     axes[0].plot(iterations, overlaps_convergence,
-                 label='convergence (y, y_prev)', lw=3)
+                 label='convergence (y, y_prev)', marker='o')
     axes[0].plot(iterations, overlaps_learned,
-                 label='recall (y_pred, y_learned)', lw=1)
+                 label='recall (y_pred, y_learned)')
     axes[0].set_ylabel("overlap")
     axes[0].set_xticks([])
     xmin, xmax = axes[0].get_xlim()
     axes[0].axhline(y=K_ACTIVE, xmin=xmin, xmax=xmax, ls='--',
                     color='black',
-                    label='k active')
+                    label='k active', alpha=0.5)
     axes[0].legend()
 
     wi, wr = zip(*memory_used)
     axes[1].plot(iterations, wi, label='Input')
     axes[1].plot(iterations, wr, label='Recurrent')
     axes[1].set_xlabel("Iteration")
-    axes[1].set_ylabel("Memory used")
+    axes[1].set_ylabel(r"Memory used ($L_0$ norm)")
     axes[1].legend()
     plt.suptitle(f"{n_samples} learned samples")
     plt.show()
