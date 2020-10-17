@@ -1,11 +1,20 @@
+import math
+from abc import ABC, abstractmethod
+
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
-from abc import ABC, abstractmethod
 from tqdm import tqdm
 
 N_NEURONS = 1000
 K_ACTIVE = 50
+
+
+def expected_random_overlap(n, k):
+    p_overlap = [math.comb(k, x) * math.comb(n - k, k - x) / math.comb(n, k)
+                 for x in range(k + 1)]
+    overlap_expected = np.multiply(p_overlap, range(k + 1)).sum()
+    return overlap_expected
 
 
 def sample_bernoulli(*size, proba: float):
@@ -103,21 +112,25 @@ class AreaHebb(Area):
     def update_weights_additive(self, x, y, y_latent=None):
         # w_ij = w_ij + learning_rate if x_ij and y_ij fired:
         # w_ij = w_ij + learning_rate * x_ij * y_ij
-        self.weight_input.add_(
-            self.learning_rate * y.unsqueeze(1) * x.unsqueeze(0))
+        def update(weight, _x):
+            # add the outer-product of vectors _y and _x
+            weight.addr_(y, _x, alpha=self.learning_rate)
+
+        update(self.weight_input, x)
         if y_latent is not None:
-            self.weight_recurrent.add_(
-                self.learning_rate * y.unsqueeze(1) * y_latent.unsqueeze(0))
+            update(self.weight_recurrent, y_latent)
 
     def update_weights_multiplicative(self, x, y, y_latent=None):
         # w_ij = w_ij * (1 + learning_rate) if x_ij and y_ij fired:
         # w_ij = w_ij * (1 + learning_rate * x_ij * y_ij)
-        self.weight_input.mul_(
-            1 + self.learning_rate * y.unsqueeze(1) * x.unsqueeze(0))
+        def update(weight, _x):
+            weight.mul_(1 + self.learning_rate *
+                        y.unsqueeze(1) *
+                        _x.unsqueeze(0))
+
+        update(self.weight_input, x)
         if y_latent is not None:
-            self.weight_recurrent.mul_(1 + self.learning_rate *
-                                       y.unsqueeze(1) *
-                                       y_latent.unsqueeze(0))
+            update(self.weight_recurrent, y_latent)
 
     def update_weights(self, x: torch.Tensor, y: torch.Tensor,
                        y_latent: torch.Tensor = None):
@@ -131,12 +144,14 @@ class AreaWillshaw(AreaHebb):
 
     def update_weights(self, x: torch.Tensor, y: torch.Tensor,
                        y_latent: torch.Tensor = None):
-        def update(weight, _x, _y):
-            weight += torch.ger(_y, _x)
+        def update(weight, _x):
+            # add the outer-product of vectors _y and _x
+            weight.addr_(y, _x)
             weight.clamp_max_(1)
-        update(self.weight_input, x, y)
+
+        update(self.weight_input, x)
         if y_latent is not None:
-            update(self.weight_recurrent, y_latent, y)
+            update(self.weight_recurrent, y_latent)
 
     def normalize_weights(self):
         return
@@ -193,6 +208,8 @@ def simulate(n_samples=10, epoch_size=10):
         ys_learned.append(y_prev)
         area.normalize_weights()
 
+    print(f"Expected random overlap: "
+          f"{expected_random_overlap(n=N_NEURONS, k=K_ACTIVE):.3f}")
     print(f"Learned assemblies similarity: "
           f"{pairwise_similarity(ys_learned):.3f}, "
           f"input: {pairwise_similarity(xs):.3f}")
