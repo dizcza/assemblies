@@ -1,3 +1,42 @@
+r"""
+
+PyTorch implementation of "project" and "associate" functions [1]_.
+
+
+The forward pass is defined as:
+
+.. math::
+    y = \sum_k W^{input}_k \bold{x}_k + \alpha W^{recurrent}\bold{y}^{latent}
+    :label: forward
+
+
+Assembly areas
+--------------
+.. autosummary::
+    :toctree: toctree/nn
+
+    AreaRNNHebb
+    AreaRNNWillshaw
+    AreaStack
+    AreasSequential
+
+
+Activation function
+-------------------
+.. autosummary::
+    :toctree: toctree/nn
+
+    KWinnersTakeAll
+
+References
+----------
+.. [1] Papadimitriou, C. H., Vempala, S. S., Mitropolsky, D., Collins, M., &
+   Maass, W. (2020). Brain computation by assemblies of neurons. Proceedings of
+   the National Academy of Sciences.
+
+"""
+
+
 import math
 from abc import ABC, abstractmethod
 from collections import OrderedDict, defaultdict
@@ -38,11 +77,35 @@ def sample_k_active(n=N_NEURONS, k=K_ACTIVE):
 
 
 class KWinnersTakeAll(nn.Module):
+    """
+    K-winners-take-all activation function.
+
+    Parameters
+    ----------
+    k_active : int, optional
+        `k`, the number of active (winner) neurons within an output layer.
+        Default: 50
+    """
     def __init__(self, k_active=K_ACTIVE):
         super().__init__()
         self.k_active = k_active
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x):
+        """
+        The forward pass of kWTA.
+
+        Parameters
+        ----------
+        x : (N,) torch.Tensor
+            An input vector.
+
+        Returns
+        -------
+        y : (N,) torch.Tensor
+            The output vector ``y = kwta(x)`` with exactly :attr:`k` active
+            neurons.
+
+        """
         winners = x.topk(k=self.k_active, sorted=False).indices
         y = torch.zeros_like(x)
         y[winners] = 1
@@ -76,8 +139,8 @@ class AreaInterface(nn.Module, ABC):
 
 
 class AreaRNN(AreaInterface, ABC):
-    def __init__(self, *in_features: int, out_features: int, p_synapse=0.01,
-                 recurrent_coef=1):
+    def __init__(self, *in_features: int, out_features, p_synapse=0.01,
+                 recurrent_coef=1., sampler=sample_bernoulli):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -85,18 +148,36 @@ class AreaRNN(AreaInterface, ABC):
         self.weights_input = []
         for parent_id, neurons_in in enumerate(in_features):
             weight_in = nn.Parameter(
-                sample_bernoulli(out_features, neurons_in, proba=p_synapse),
+                sampler(out_features, neurons_in, proba=p_synapse),
                 requires_grad=False)
             self.register_parameter(name=f"weight_input{parent_id}",
                                     param=weight_in)
             self.weights_input.append(weight_in)
         self.weight_recurrent = nn.Parameter(
-            sample_bernoulli(out_features, out_features, proba=p_synapse),
+            sampler(out_features, out_features, proba=p_synapse),
             requires_grad=False)
         self.kwta = KWinnersTakeAll()
         self.normalize_weights()
 
     def forward(self, *xs_stim: torch.Tensor, y_latent=None):
+        """
+        The forward pass :eq:`forward`.
+
+        Parameters
+        ----------
+        *xs_stim
+            Input vectors from the incoming areas.
+        y_latent : torch.Tensor or None, optional
+            The stored latent (hidden activations) vector from the previous
+            step.
+            Default: None
+
+        Returns
+        -------
+        y_out : torch.Tensor
+            The output vector.
+
+        """
         assert len(xs_stim) == len(self.weights_input)
         y_out = torch.zeros(self.out_features)
         for x, w_in in zip(xs_stim, self.weights_input):
@@ -145,25 +226,105 @@ class AreaRNN(AreaInterface, ABC):
 
 
 class AreaRNNHebb(AreaRNN):
-    def __init__(self, *in_features: int, out_features: int, p_synapse=0.01,
-                 recurrent_coef=1., learning_rate=0.1):
+    r"""
+    A Hebbian-learning recurrent neural network with one or more incoming input
+    layers and only one output layer.
+
+    The update rule, if :math:`x_j` and :math:`y_i` neurons fired:
+
+    .. math::
+        W_{ij} = W_{ij} + \beta
+        :label: update-hebb
+
+    After each epoch, many repetitions of the same input trial, the weights
+    are normalized to have ``1.0`` in its pre-synaptic sum for each neuron.
+
+    Parameters
+    ----------
+    *in_features
+        The sizes of input vectors from incoming areas.
+    out_features : int
+        The size of the output layer.
+    p_synapse : float, optional
+        The initial probability of recurrent and afferent synaptic
+        connectivity.
+        Default: 0.01
+    recurrent_coef : float, optional
+        The recurrent coefficient :math:`\alpha` in :eq:`forward`.
+        Default: 1
+    learning_rate : float, optional
+        The plasticity coefficient :math:`\beta` in :eq:`update-hebb`.
+        Default: 0.1
+    sampler : {sample_bernoulli, sample_uniform_masked}, optional
+        Weights initialization function to call: either Bernoulli or uniform.
+        Default: sample_bernoulli
+
+    """
+    def __init__(self, *in_features: int, out_features, p_synapse=0.01,
+                 recurrent_coef=1., learning_rate=0.1,
+                 sampler=sample_bernoulli):
         super().__init__(*in_features, out_features=out_features,
-                         p_synapse=p_synapse, recurrent_coef=recurrent_coef)
+                         p_synapse=p_synapse, recurrent_coef=recurrent_coef,
+                         sampler=sampler)
         self.learning_rate = learning_rate
 
     def update_weight(self, weight, x, y):
+        # w_ij = w_ij + learning_rate, if x_j and y_i fired:
+        # w_ij = w_ij + learning_rate * x_j * y_i
         weight.addr_(y, x, alpha=self.learning_rate)
+
+    def update_weight_multiplicative(self, weight, x, y):
+        # w_ij = w_ij * (1 + learning_rate), if x_j and y_i fired:
+        # w_ij = w_ij * (1 + learning_rate * x_j * y_i)
+        weight.mul_(1 + self.learning_rate * y.unsqueeze(1) * x.unsqueeze(0))
 
     def normalize_weight(self, weight):
         weight /= weight.sum(dim=1, keepdim=True)
 
 
 class AreaRNNWillshaw(AreaRNN):
-    """
-    Non-Holographic Associative Memory Area by Willshaw.
+    r"""
+    Non-Holographic Associative Memory Area [1]_: a recurrent neural network
+    with one or more incoming input layers and only one output layer. The
+    weights are sparse and binary.
+
+    The update rule, if :math:`x_j` and :math:`y_i` neurons fired:
+
+    .. math::
+        W_{ij} = 1
+        :label: update-will
+
+    Parameters
+    ----------
+    *in_features
+        The sizes of input vectors from incoming areas.
+    out_features : int
+        The size of the output layer.
+    p_synapse : float, optional
+        The initial probability of recurrent and afferent synaptic
+        connectivity.
+        Default: 0.01
+    recurrent_coef : float, optional
+        The recurrent coefficient :math:`\alpha` in :eq:`forward`.
+        Default: 1.0
+
+    References
+    ----------
+    .. [1] Willshaw, D. J., Buneman, O. P., & Longuet-Higgins, H. C. (1969).
+       Non-holographic associative memory. Nature, 222(5197), 960-962.
+
     """
 
+    def __init__(self, *in_features: int, out_features, p_synapse=0.01,
+                 recurrent_coef=1):
+        super().__init__(*in_features,
+                         out_features=out_features,
+                         p_synapse=p_synapse,
+                         recurrent_coef=recurrent_coef,
+                         sampler=sample_bernoulli)
+
     def update_weight(self, weight, x, y):
+        # w_ij = 1, if x_j and y_i fired, and 0 otherwise
         weight.addr_(y, x)
         weight.clamp_max_(1)
 
@@ -176,7 +337,7 @@ class AreaStack(nn.Sequential, AreaInterface):
 
     def __init__(self, *areas: AreaRNN):
         areas_named = OrderedDict({
-            f"vertical{idx}": area for idx, area in enumerate(areas)
+            f"vertical-{idx}": area for idx, area in enumerate(areas)
         })
         nn.Sequential.__init__(self, areas_named)
 
@@ -307,5 +468,5 @@ def simulate(n_samples=10, epoch_size=10):
 
 if __name__ == '__main__':
     torch.manual_seed(19)
-    # associate_example()
-    simulate()
+    associate_example()
+    # simulate()
