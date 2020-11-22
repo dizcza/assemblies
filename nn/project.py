@@ -1,12 +1,17 @@
 r"""
 
-PyTorch implementation of "project" and "associate" functions [1]_.
+PyTorch implementation of `project` and `associate` operations [1]_.
 
 
-The forward pass is defined as:
+The forward pass is defined in two steps:
 
 .. math::
-    y = \sum_k W^{input}_k \bold{x}_k + \alpha W^{recurrent}\bold{y}^{latent}
+    \begin{cases}
+    \bold{y} = \sum_l W^{input}_l \bold{x}_l +
+               \alpha W^{recurrent}\bold{y}^{latent}
+    \\
+    \bold{y} = \text{kWTA}(\bold{y}, k)
+    \end{cases}
     :label: forward
 
 
@@ -40,12 +45,18 @@ References
 import math
 from abc import ABC, abstractmethod
 from collections import OrderedDict, defaultdict
+import time
+from copy import deepcopy
 
 import numpy as np
 import torch
 import torch.nn as nn
 from matplotlib import pyplot as plt
 from tqdm import tqdm
+
+from mighty.utils.common import find_layers, find_named_layers
+from mighty.monitor.viz import VisdomMighty
+from mighty.monitor.batch_timer import timer
 
 N_NEURONS = 1000
 K_ACTIVE = 50
@@ -403,70 +414,141 @@ def associate_example(n_samples=10, epoch_size=10):
             y_out, y_latent = brain(xa, xb, y_latent=y_latent)
 
 
-def simulate(n_samples=10, epoch_size=10):
-    area = AreaRNNHebb(N_NEURONS, out_features=N_NEURONS // 2)
-    print(area)
-    xs = [sample_k_active(n=N_NEURONS, k=K_ACTIVE) for _ in range(n_samples)]
-    ys_learned = []
-    overlaps_convergence = []
-    overlaps_learned = []  # recall
-    memory_used = defaultdict(list)
-    for sample_count, x in enumerate(tqdm(xs, desc="Projecting"), start=1):
+class Monitor:
+
+    def __init__(self, area: AreaInterface):
+        self.area = area
+        env_name = f"{time.strftime('%Y.%m.%d')} {area.__class__.__name__}"
+        self.viz = VisdomMighty(env=env_name)
+        self.viz.close()  # clear previous plots
+        self.handles = []
+        self.module_name = dict()
+        for name, layer in find_named_layers(
+                area, layer_class=AreaRNN,
+                name_prefix=area.__class__.__name__):
+            self.module_name[layer] = name
+            handle = layer.register_forward_hook(self.forward_hook)
+            self.handles.append(handle)
+        self.ys_output = dict()
+        self.ys_previous = None
+        self.ys_learned = defaultdict(list)
+
+    def forward_hook(self, module, input, output):
+        name = self.module_name[module]
+        self.ys_output[name] = output
+
+    def remove_handles(self):
+        for handle in self.handles:
+            handle.remove()
+
+    def _update_convergence(self):
+        if self.ys_previous is None:
+            return
+        overlaps = {'k-active': K_ACTIVE}
+        for name in self.ys_output.keys():
+            overlaps[name] = self.ys_output[name].matmul(
+                self.ys_previous[name]).item()
+        for name, overlap in overlaps.items():
+            self.viz.line_update(y=overlap, opts=dict(
+                xlabel='Epoch',
+                ylabel='overlap',
+                title='convergence (y, y_prev)'
+            ), name=name)
+
+    def _update_recall(self, x_samples_learned):
+        assert len(self.ys_output) == 0
+        ys_learned = {}
+        for name in self.ys_previous.keys():
+            ys_learned[name] = self.ys_learned[name] + [self.ys_previous[name]]
+            assert len(ys_learned[name]) == len(x_samples_learned)
+        recall = defaultdict(float)
+        for i, x in enumerate(x_samples_learned):
+            # ys will be populated via the forward hook
+            y_ignored = self.area.recall(x)
+            for name, y_predicted in self.ys_output.items():
+                y_learned = ys_learned[name][i]
+                n_total = len(ys_learned[name])
+                recall[name] += (y_predicted * y_learned).sum() / n_total
+            self.ys_output.clear()
+        recall['k-active'] = K_ACTIVE
+        for name in recall.keys():
+            self.viz.line_update(y=recall[name], opts=dict(
+                xlabel='Epoch',
+                ylabel='overlap',
+                title='recall (y_pred, y_learned)'
+            ), name=name)
+
+    def _update_memory_used(self):
+        for name, memory_used in self.area.memory_used().items():
+            self.viz.line_update(y=memory_used, opts=dict(
+                xlabel='Epoch',
+                title=r"Memory used (L0 norm)"
+            ), name=name)
+
+    def assembly_similarity(self):
+        similarity = dict()
+        for name in self.ys_learned.keys():
+            similarity[name] = pairwise_similarity(self.ys_learned[name])
+        return similarity
+
+    def trial_finished(self, x_samples_learned):
+        self._update_convergence()
+        self.ys_previous = self.ys_output.copy()
+        self.ys_output.clear()
+        self._update_recall(x_samples_learned)
+        self._update_memory_used()
+
+    def epoch_finished(self):
+        # ys_output is already cleared up
+        for name, y_final in self.ys_previous.items():
+            self.ys_learned[name].append(y_final)
+        self.ys_previous = None
+
+    def log_assembly_similarity(self, input_similarity=None):
+        assembly_similarity = self.assembly_similarity()
+        if input_similarity:
+            assembly_similarity['input'] = input_similarity
+        lines = ["Learned assemblies similarity:"]
+        for name, similarity in assembly_similarity.items():
+            lines.append(f"--{name}: {similarity:.3f}")
+        text = '<br>'.join(lines)
+        self.viz.log(text=text, timestamp=False)
+
+
+def simulate(area, x_samples, epoch_size=10):
+    timer.init(batches_in_epoch=epoch_size)
+    monitor = Monitor(area=area)
+
+    for sample_count, x in enumerate(tqdm(x_samples, desc="Projecting"),
+                                     start=1):
         y_prev = None  # inhibit the area
         for step in range(epoch_size):
             y = area(x, y_latent=y_prev)
-            converged = False
-            if y_prev is None:
-                overlaps_convergence.append(np.nan)
+            if isinstance(area, AreasSequential):
+                y, y_prev = y
             else:
-                overlap = y.matmul(y_prev).item()
-                overlaps_convergence.append(overlap)
-                converged = overlap == K_ACTIVE
-            overlap_recall = recall_overlap(
-                xs[:sample_count],
-                area=area,
-                ys_learned=ys_learned + [y]
-            )
-            overlaps_learned.append(overlap_recall)
-            mem_used_dict = area.memory_used()
-            memory_used['input'].append(mem_used_dict['weight_input0'])
-            memory_used['recurrent'].append(mem_used_dict['weight_recurrent'])
-            y_prev = y
-            if converged:
-                break
-        ys_learned.append(y_prev)
+                y_prev = y
+            timer.tick()
+            monitor.trial_finished(x_samples[:sample_count])
         area.normalize_weights()
+        monitor.epoch_finished()
 
-    print(f"Expected random overlap: "
-          f"{expected_random_overlap(n=N_NEURONS, k=K_ACTIVE):.3f}")
-    print(f"Learned assemblies similarity: "
-          f"{pairwise_similarity(ys_learned):.3f}, "
-          f"input: {pairwise_similarity(xs):.3f}")
-    fig, axes = plt.subplots(nrows=2, ncols=1)
+    monitor.log_assembly_similarity(
+        input_similarity=pairwise_similarity(x_samples))
+    monitor.viz.log(f"Expected random overlap: "
+                    f"{expected_random_overlap(n=N_NEURONS, k=K_ACTIVE):.3f}",
+                    timestamp=False)
 
-    iterations = np.arange(len(overlaps_convergence))
-    axes[0].plot(iterations, overlaps_convergence,
-                 label='convergence (y, y_prev)', marker='o')
-    axes[0].plot(iterations, overlaps_learned,
-                 label='recall (y_pred, y_learned)')
-    axes[0].set_ylabel("overlap")
-    axes[0].set_xticks([])
-    xmin, xmax = axes[0].get_xlim()
-    axes[0].axhline(y=K_ACTIVE, xmin=xmin, xmax=xmax, ls='--',
-                    color='black',
-                    label='k active', alpha=0.5)
-    axes[0].legend()
+    monitor.remove_handles()
 
-    for key in memory_used.keys():
-        axes[1].plot(iterations, memory_used[key], label=key)
-    axes[1].set_xlabel("Iteration")
-    axes[1].set_ylabel(r"Memory used ($L_0$ norm)")
-    axes[1].legend()
-    plt.suptitle(f"{n_samples} learned samples")
-    plt.show()
+
+def simulate_example(n_samples=10):
+    area = AreaRNNHebb(N_NEURONS, out_features=N_NEURONS // 2)
+    xs = [sample_k_active(n=N_NEURONS, k=K_ACTIVE) for _ in range(n_samples)]
+    simulate(area=area, x_samples=xs)
 
 
 if __name__ == '__main__':
     torch.manual_seed(19)
-    associate_example()
-    # simulate()
+    # associate_example()
+    simulate_example()
