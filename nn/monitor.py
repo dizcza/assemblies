@@ -112,12 +112,13 @@ class Monitor:
         for name in self.ys_output.keys():
             overlaps[name] = self.ys_output[name].matmul(
                 self.ys_previous[name]).item()
-        for name, overlap in overlaps.items():
-            self.viz.line_update(y=overlap, opts=dict(
-                xlabel='Epoch',
-                ylabel='overlap',
-                title='convergence (y, y_prev)'
-            ), name=name)
+        names, values = list(zip(*overlaps.items()))
+        self.viz.line_update(y=values, opts=dict(
+            xlabel='Epoch',
+            ylabel='overlap',
+            title='convergence (y, y_prev)',
+            legend=names,
+        ))
 
     def _update_recall(self, x_samples_learned):
         assert len(self.ys_output) == 0
@@ -135,19 +136,21 @@ class Monitor:
                 n_total = len(ys_learned[name])
                 recall[name] += (y_predicted * y_learned).sum() / n_total
             self.ys_output.clear()
-        for name in recall.keys():
-            self.viz.line_update(y=recall[name], opts=dict(
-                xlabel='Epoch',
-                ylabel='overlap',
-                title='recall (y_pred, y_learned)'
-            ), name=name)
+        names, values = list(zip(*recall.items()))
+        self.viz.line_update(y=values, opts=dict(
+            xlabel='Epoch',
+            ylabel='overlap',
+            title='recall (y_pred, y_learned)',
+            legend=names,
+        ))
 
     def _update_memory_used(self):
-        for name, memory_used in self.area.memory_used().items():
-            self.viz.line_update(y=memory_used, opts=dict(
-                xlabel='Epoch',
-                title=r"Memory used (L0 norm)"
-            ), name=name)
+        names, values = list(zip(*self.area.memory_used().items()))
+        self.viz.line_update(y=values, opts=dict(
+            xlabel='Epoch',
+            title=r"Memory used (L0 norm)",
+            legend=names,
+        ))
 
     def assembly_similarity(self):
         """
