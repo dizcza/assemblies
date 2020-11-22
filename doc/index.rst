@@ -1,4 +1,4 @@
 Computation with Assemblies
 ===========================
 
-.. automodule:: nn.project
+.. automodule:: nn
