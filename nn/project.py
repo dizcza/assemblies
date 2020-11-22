@@ -41,22 +41,19 @@ References
 
 """
 
+from collections import OrderedDict, defaultdict
 
 import math
-from abc import ABC, abstractmethod
-from collections import OrderedDict, defaultdict
-import time
-from copy import deepcopy
-
 import numpy as np
+import time
 import torch
 import torch.nn as nn
-from matplotlib import pyplot as plt
+from abc import ABC, abstractmethod
 from tqdm import tqdm
 
-from mighty.utils.common import find_layers, find_named_layers
-from mighty.monitor.viz import VisdomMighty
 from mighty.monitor.batch_timer import timer
+from mighty.monitor.viz import VisdomMighty
+from mighty.utils.common import find_layers, find_named_layers
 
 N_NEURONS = 1000
 K_ACTIVE = 50
@@ -127,26 +124,75 @@ class KWinnersTakeAll(nn.Module):
 
 
 class AreaInterface(nn.Module, ABC):
-    def recall(self, *xs_stim: torch.Tensor) -> torch.Tensor:
+    def recall(self, xs_stim):
+        """
+        A forward pass without latent activations.
+
+        Parameters
+        ----------
+        xs_stim : torch.Tensor or tuple of torch.Tensor
+            Input vectors from the incoming areas.
+
+        Returns
+        -------
+        y_out : torch.Tensor
+            The output vector.
+        """
         mode = self.training
         self.eval()
-        y_out = self(*xs_stim)
+        y_out = self(xs_stim)
         self.train(mode)
         return y_out
 
-    def complete_from_input(self, *xs_partial: torch.Tensor,
-                            y_latent=None) -> torch.Tensor:
+    def complete_from_input(self, xs_partial, y_latent=None):
+        """
+        Complete the pattern from the partial input.
+
+        Nothing more than a simple forward pass without updating the weights.
+
+        Parameters
+        ----------
+        xs_partial : torch.Tensor or tuple of torch.Tensor
+            Input vectors from the incoming areas.
+        y_latent : torch.Tensor or None, optional
+            The stored latent (hidden activations) vector from the previous
+            step.
+            Default: None
+
+        Returns
+        -------
+        y_out : torch.Tensor
+            The output vector.
+        """
         mode = self.training
         self.eval()
-        y_out = self(*xs_partial, y_latent=y_latent)
+        y_out = self(xs_partial, y_latent=y_latent)
         self.train(mode)
         return y_out
 
     def memory_used(self):
-        mem_used = {}
+        r"""
+        Computes the used memory bits as
+        :math:`\frac{||W||_0}{\text{size}(W)}`
+
+        Returns
+        -------
+        dict
+            A dictionary with used memory for each parameter (weight matrix).
+        """
+        memory_used = {}
         for name, param in self.named_parameters():
-            mem_used[name] = param.norm(p=0) / param.nelement()
-        return mem_used
+            memory_used[name] = param.norm(p=0) / param.nelement()
+        return memory_used
+
+    def normalize_weights(self):
+        """
+        Normalize the pre-synaptic weights sum to ``1.0``.
+        """
+        for module in find_layers(self, layer_class=AreaRNN):
+            for w_in in module.parameters(recurse=False):
+                # input and recurrent weights
+                module.normalize_weight(w_in)
 
 
 class AreaRNN(AreaInterface, ABC):
@@ -170,13 +216,13 @@ class AreaRNN(AreaInterface, ABC):
         self.kwta = KWinnersTakeAll()
         self.normalize_weights()
 
-    def forward(self, *xs_stim: torch.Tensor, y_latent=None):
+    def forward(self, xs_stim, y_latent=None):
         """
         The forward pass :eq:`forward`.
 
         Parameters
         ----------
-        *xs_stim
+        xs_stim : torch.Tensor or tuple of torch.Tensor
             Input vectors from the incoming areas.
         y_latent : torch.Tensor or None, optional
             The stored latent (hidden activations) vector from the previous
@@ -189,6 +235,8 @@ class AreaRNN(AreaInterface, ABC):
             The output vector.
 
         """
+        if isinstance(xs_stim, torch.Tensor):
+            xs_stim = [xs_stim]
         assert len(xs_stim) == len(self.weights_input)
         y_out = torch.zeros(self.out_features)
         for x, w_in in zip(xs_stim, self.weights_input):
@@ -205,10 +253,10 @@ class AreaRNN(AreaInterface, ABC):
                 self.update_weight(self.weight_recurrent, x=y_latent, y=y_out)
         return y_out
 
-    def recall(self, *xs_stim: torch.Tensor):
+    def recall(self, xs_stim: torch.Tensor):
         mode = self.training
         self.eval()
-        y_out = self(*xs_stim)
+        y_out = self(xs_stim)
         self.train(mode)
         return y_out
 
@@ -216,13 +264,16 @@ class AreaRNN(AreaInterface, ABC):
     def update_weight(self, weight, x, y):
         pass
 
-    def normalize_weights(self):
-        for w_in in self.parameters():
-            # input and recurrent weights
-            self.normalize_weight(w_in)
-
     @abstractmethod
     def normalize_weight(self, weight):
+        """
+        Normalize the pre-synaptic weights sum to ``1.0``.
+
+        Parameters
+        ----------
+        weight : torch.Tensor
+            A weight matrix.
+        """
         pass
 
     def complete_pattern(self, y_partial: torch.Tensor) -> torch.Tensor:
@@ -352,7 +403,7 @@ class AreaStack(nn.Sequential, AreaInterface):
         })
         nn.Sequential.__init__(self, areas_named)
 
-    def forward(self, *xs_stim: torch.Tensor, y_latent=None):
+    def forward(self, xs_stim, y_latent=None):
         assert len(xs_stim) == len(self)
         if y_latent is None:
             y_latent = [None] * len(xs_stim)
@@ -363,38 +414,49 @@ class AreaStack(nn.Sequential, AreaInterface):
 
 class AreasSequential(nn.Sequential, AreaInterface):
 
-    def forward(self, *xs_stim, y_latent=None):
+    def forward(self, xs_stim, y_latent=None):
         assert len(xs_stim) == len(self)
         y_out = xs_stim
         if y_latent is None:
             y_latent = [None] * len(self)
         y_intermediate = []  # hidden activations of the intermediate layers
         for module, yl in zip(self, y_latent):
-            if isinstance(y_out, torch.Tensor):
-                y_out = [y_out]
-            y_out = module(*y_out, y_latent=yl)
+            y_out = module(y_out, y_latent=yl)
             y_intermediate.append(y_out)
         return y_out, y_intermediate
 
-    def recall(self, *xs_stim: torch.Tensor):
-        mode = self.training
-        self.eval()
-        y_out, y_intermediate = self(*xs_stim)
-        self.train(mode)
+    def recall(self, xs_stim):
+        y_out, y_intermediate = super().recall(xs_stim)
         return y_out
 
 
-def recall_overlap(xs, area: AreaRNN, ys_learned):
-    y_predicted = torch.stack([area.recall(x) for x in xs])
-    recall = (y_predicted * torch.stack(ys_learned)).sum(dim=1).mean()
-    return recall
-
-
 def pairwise_similarity(tensors):
+    """
+
+    Parameters
+    ----------
+    tensors : list of torch.Tensor
+        A list of input vectors to recall. Each entry can be either a
+        single vector tensor (one incoming area) or a tuple of tensors
+        (multiple incoming areas).
+
+    Returns
+    -------
+
+    """
     if not isinstance(tensors, torch.Tensor):
-        tensors = torch.stack(tensors)
-    similarity = tensors[1:].matmul(tensors[:-1].t())
-    similarity = similarity.mean() / K_ACTIVE
+        if not isinstance(tensors[0], torch.Tensor):
+            # multiple incoming areas
+            sim_areas = list(map(pairwise_similarity, zip(*tensors)))
+            sim_areas = np.mean(sim_areas)
+            return sim_areas
+        else:
+            tensors = torch.stack(tensors)
+    similarity = tensors.matmul(tensors.t())
+    n_elements = len(tensors)
+    ii, jj = torch.triu_indices(row=n_elements, col=n_elements, offset=1)
+    similarity = similarity[ii, jj].mean()
+    similarity /= K_ACTIVE
     return similarity
 
 
@@ -408,10 +470,12 @@ def associate_example(n_samples=10, epoch_size=10):
     print(brain)
     xa_samples = [sample_k_active(n=na, k=K_ACTIVE) for _ in range(n_samples)]
     xb_samples = [sample_k_active(n=nb, k=K_ACTIVE) for _ in range(n_samples)]
-    for xa, xb in zip(xa_samples, xb_samples):
-        y_latent = None
-        for step in range(epoch_size):
-            y_out, y_latent = brain(xa, xb, y_latent=y_latent)
+    x_pairs = list(zip(xa_samples, xb_samples))
+    simulate(area=brain, x_samples=x_pairs)
+    # for xa, xb in zip(xa_samples, xb_samples):
+    #     y_latent = None
+    #     for step in range(epoch_size):
+    #         y_out, y_latent = brain(xa, xb, y_latent=y_latent)
 
 
 class Monitor:
@@ -427,17 +491,21 @@ class Monitor:
                 area, layer_class=AreaRNN,
                 name_prefix=area.__class__.__name__):
             self.module_name[layer] = name
-            handle = layer.register_forward_hook(self.forward_hook)
+            handle = layer.register_forward_hook(self._forward_hook)
             self.handles.append(handle)
         self.ys_output = dict()
         self.ys_previous = None
         self.ys_learned = defaultdict(list)
 
-    def forward_hook(self, module, input, output):
+    def _forward_hook(self, module, input, output):
         name = self.module_name[module]
         self.ys_output[name] = output
 
     def remove_handles(self):
+        """
+        Remove the hooks that has been used to track intermediate layers
+        output.
+        """
         for handle in self.handles:
             handle.remove()
 
@@ -462,6 +530,7 @@ class Monitor:
             ys_learned[name] = self.ys_learned[name] + [self.ys_previous[name]]
             assert len(ys_learned[name]) == len(x_samples_learned)
         recall = defaultdict(float)
+        recall['k-active'] = K_ACTIVE
         for i, x in enumerate(x_samples_learned):
             # ys will be populated via the forward hook
             y_ignored = self.area.recall(x)
@@ -470,7 +539,6 @@ class Monitor:
                 n_total = len(ys_learned[name])
                 recall[name] += (y_predicted * y_learned).sum() / n_total
             self.ys_output.clear()
-        recall['k-active'] = K_ACTIVE
         for name in recall.keys():
             self.viz.line_update(y=recall[name], opts=dict(
                 xlabel='Epoch',
@@ -486,12 +554,30 @@ class Monitor:
             ), name=name)
 
     def assembly_similarity(self):
+        """
+        Computes the similarity of learned assemblies.
+
+        Returns
+        -------
+        similarity : dict
+            A dict with pairwise assembly similarity.
+        """
         similarity = dict()
-        for name in self.ys_learned.keys():
-            similarity[name] = pairwise_similarity(self.ys_learned[name])
+        for name, y_learned in self.ys_learned.items():
+            similarity[name] = pairwise_similarity(y_learned)
         return similarity
 
     def trial_finished(self, x_samples_learned):
+        """
+        A sample is being learned callback.
+
+        Parameters
+        ----------
+        x_samples_learned : list
+            A list of learned input vectors to recall. Each entry can be either
+            a single vector tensor (one incoming area) or a tuple of tensors
+            (multiple incoming areas).
+        """
         self._update_convergence()
         self.ys_previous = self.ys_output.copy()
         self.ys_output.clear()
@@ -499,6 +585,9 @@ class Monitor:
         self._update_memory_used()
 
     def epoch_finished(self):
+        """
+        A sample is learned callback.
+        """
         # ys_output is already cleared up
         for name, y_final in self.ys_previous.items():
             self.ys_learned[name].append(y_final)
@@ -550,5 +639,5 @@ def simulate_example(n_samples=10):
 
 if __name__ == '__main__':
     torch.manual_seed(19)
-    # associate_example()
-    simulate_example()
+    associate_example()
+    # simulate_example()
