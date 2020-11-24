@@ -117,7 +117,7 @@ class AreaInterface(nn.Module, ABC):
         for module in find_layers(self, layer_class=AreaRNN):
             for w_in in module.parameters(recurse=False):
                 # input and recurrent weights
-                module.normalize_weight(w_in)
+                module._normalize_weight(w_in)
 
 
 class AreaRNN(AreaInterface, ABC):
@@ -197,9 +197,9 @@ class AreaRNN(AreaInterface, ABC):
         pass
 
     @abstractmethod
-    def normalize_weight(self, weight):
+    def _normalize_weight(self, weight):
         """
-        Normalize the pre-synaptic weights sum to ``1.0``.
+        Normalize the pre-synaptic weight sum to ``1.0``.
 
         Parameters
         ----------
@@ -208,7 +208,20 @@ class AreaRNN(AreaInterface, ABC):
         """
         pass
 
-    def complete_pattern(self, y_partial: torch.Tensor) -> torch.Tensor:
+    def complete_pattern(self, y_partial):
+        """
+        Complete the pattern using the recurrent connections only.
+
+        Parameters
+        ----------
+        y_partial : torch.Tensor
+            A partially activated latent vector.
+
+        Returns
+        -------
+        y : torch.Tensor
+            The reconstructed vector `y`.
+        """
         y = self.weight_recurrent.matmul(y_partial)
         y = self.kwta(y)
         return y
@@ -272,7 +285,7 @@ class AreaRNNHebb(AreaRNN):
         # w_ij = w_ij * (1 + learning_rate * x_j * y_i)
         weight.mul_(1 + self.learning_rate * y.unsqueeze(1) * x.unsqueeze(0))
 
-    def normalize_weight(self, weight):
+    def _normalize_weight(self, weight):
         weight /= weight.sum(dim=1, keepdim=True)
 
 
@@ -322,7 +335,7 @@ class AreaRNNWillshaw(AreaRNN):
         weight.addr_(y, x)
         weight.clamp_max_(1)
 
-    def normalize_weight(self, weight):
+    def _normalize_weight(self, weight):
         # the weights are already binary at the update stage
         pass
 

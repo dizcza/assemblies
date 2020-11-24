@@ -34,6 +34,14 @@ Activation function
     KWinnersTakeAll
 
 
+Train and simulate
+------------------
+.. autosummary::
+    :toctree: toctree/nn
+
+    Simulator
+
+
 Monitoring
 ----------
 .. autosummary::
@@ -42,6 +50,7 @@ Monitoring
     Monitor
     expected_random_overlap
     pairwise_similarity
+
 
 References
 ----------
@@ -54,3 +63,4 @@ References
 from .monitor import Monitor, expected_random_overlap, pairwise_similarity
 from .areas import AreaRNNHebb, AreaRNNWillshaw, AreaStack, AreaSequential, \
     KWinnersTakeAll
+from .simulate import Simulator

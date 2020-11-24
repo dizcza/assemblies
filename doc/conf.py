@@ -12,6 +12,7 @@
 #
 import os
 import sys
+import torch.nn
 sys.path.insert(0, os.path.abspath('..'))
 
 
@@ -41,7 +42,7 @@ extensions = [
 ]
 
 # Add any paths that contain templates here, relative to this directory.
-# templates_path = ['_templates']
+templates_path = ['_templates']
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -49,6 +50,20 @@ extensions = [
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 autosummary_generate = True
+
+# Suppresses  wrong numpy doc warnings
+# see here https://github.com/phn/pytpm/issues/3#issuecomment-12133978
+numpydoc_show_class_members = False
+
+_exclude_members = dir(torch.nn.Module)
+_exclude_members.remove('forward')
+autosummary_context = {'exclude_members': _exclude_members}
+autodoc_default_options = {
+    'members': True,
+    'show-inheritance': True,
+    'inherited-members': True,
+    'exclude-members': ', '.join(_exclude_members)
+}
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -61,13 +76,3 @@ html_theme = 'alabaster'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 # html_static_path = ['_static']
-
-# Suppresses  wrong numpy doc warnings
-# see here https://github.com/phn/pytpm/issues/3#issuecomment-12133978
-numpydoc_show_class_members = False
-
-autodoc_default_options = {
-    'undoc-members': False,
-    'show-inheritance': False,
-    'inherited-members': False,
-}

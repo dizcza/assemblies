@@ -9,6 +9,18 @@ from nn.samplers import *
 
 
 class Simulator:
+    """
+    Train and simulate Computation with Assemblies.
+
+    Parameters
+    ----------
+    area : AreaInterface
+        The recurrent NN area to train/simulate.
+    epoch_size : int, optional
+        Defines the number of simulations to run for each trial sample.
+        Each trial sample represent a complete epoch.
+        Default: 10
+    """
     def __init__(self, area, epoch_size=10):
         self.area = area
         self.monitor = Monitor(area)
@@ -16,6 +28,14 @@ class Simulator:
         timer.init(epoch_size)
 
     def simulate(self, x_samples):
+        """
+        Train and simulate the :attr:`area` with the input `x_samples` data.
+
+        Parameters
+        ----------
+        x_samples : list of torch.Tensor
+            The input stimuli samples list.
+        """
         self.monitor.reset()
         self.monitor.viz.log(f"Simulate epoch_start={timer.epoch}")
         for sample_count, x in enumerate(tqdm(x_samples, desc="Projecting"),
