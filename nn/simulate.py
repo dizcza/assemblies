@@ -75,10 +75,6 @@ def associate_example(n_samples=10):
     simulator.simulate(x_samples=list(zip(xa_samples, [None] * n_samples)))
     simulator.simulate(x_samples=list(zip([None] * n_samples, xb_samples)))
     simulator.simulate(x_samples=x_pairs)
-    # for xa, xb in zip(xa_samples, xb_samples):
-    #     y_latent = None
-    #     for step in range(epoch_size):
-    #         y_out, y_latent = brain(xa, xb, y_latent=y_latent)
 
 
 def simulate_example(n_samples=10):

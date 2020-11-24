@@ -83,11 +83,15 @@ class Monitor:
         env_name = f"{time.strftime('%Y.%m.%d')} {area.__class__.__name__}"
         self.viz = VisdomMighty(env=env_name)
         self.viz.close()  # clear previous plots
+        self.log_area_model()
         self.handles = []
         self.module_name = dict()
-        for name, layer in find_named_layers(
-                area, layer_class=AreaRNN,
-                name_prefix=area.__class__.__name__):
+        if isinstance(area, torch.nn.Sequential):
+            name_prefix = ''
+        else:
+            name_prefix = area.__class__.__name__
+        for name, layer in find_named_layers(area, layer_class=AreaRNN,
+                                             name_prefix=name_prefix):
             self.module_name[layer] = name
             handle = layer.register_forward_hook(self._forward_hook)
             self.handles.append(handle)
@@ -231,3 +235,21 @@ class Monitor:
             lines.append(f"--{name}: {similarity:.3f}")
         text = '<br>'.join(lines)
         self.viz.log(text=text, timestamp=False)
+
+    def log_area_model(self, space='-'):
+        """
+        Logs the :attr:`area`.
+
+        Parameters
+        ----------
+        space : str, optional
+            A space substitution to correctly parse HTML later on.
+            Default: '-'
+        """
+        lines = []
+        for line in repr(self.area).splitlines():
+            n_spaces = len(line) - len(line.lstrip())
+            line = space * n_spaces + line
+            lines.append(line)
+        lines = '<br>'.join(lines)
+        self.viz.text(lines)

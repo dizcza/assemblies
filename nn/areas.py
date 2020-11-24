@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from string import ascii_uppercase
 
 import torch
 import torch.nn as nn
@@ -352,7 +353,7 @@ class AreaStack(nn.Sequential, AreaInterface):
 
     def __init__(self, *areas: AreaRNN):
         areas_named = OrderedDict({
-            f"vertical-{idx}": area for idx, area in enumerate(areas)
+            f"{letter}": area for letter, area in zip(ascii_uppercase, areas)
         })
         nn.Sequential.__init__(self, areas_named)
 
