@@ -162,10 +162,13 @@ class AreaRNN(AreaInterface, ABC):
         """
         if isinstance(xs_stim, torch.Tensor):
             xs_stim = [xs_stim]
+        if xs_stim is None or all(x is None for x in xs_stim):
+            return None
         assert len(xs_stim) == len(self.weights_input)
         y_out = torch.zeros(self.out_features)
         for x, w_in in zip(xs_stim, self.weights_input):
-            y_out += w_in.matmul(x)
+            if x is not None:
+                y_out += w_in.matmul(x)
         if y_latent is not None:
             # y_out += alpha * W_rec @ y_latent
             y_out.addmv_(mat=self.weight_recurrent, vec=y_latent,
@@ -173,7 +176,8 @@ class AreaRNN(AreaInterface, ABC):
         y_out = self.kwta(y_out)
         if self.training:
             for x, w_in in zip(xs_stim, self.weights_input):
-                self.update_weight(w_in, x=x, y=y_out)
+                if x is not None:
+                    self.update_weight(w_in, x=x, y=y_out)
             if y_latent is not None:
                 self.update_weight(self.weight_recurrent, x=y_latent, y=y_out)
         return y_out

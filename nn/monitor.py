@@ -50,14 +50,16 @@ def pairwise_similarity(tensors):
         The pairwise :math:`L_{0/1}` similarity from 0 to 1.
 
     """
-    if not isinstance(tensors, torch.Tensor):
-        if not isinstance(tensors[0], torch.Tensor):
-            # multiple incoming areas
-            sim_areas = list(map(pairwise_similarity, zip(*tensors)))
-            sim_areas = np.mean(sim_areas)
-            return sim_areas
-        else:
-            tensors = torch.stack(tensors)
+    tensors = [t for t in tensors if t is not None]
+    if len(tensors) == 0:
+        return np.nan
+    if not isinstance(tensors[0], torch.Tensor):
+        # multiple incoming areas
+        sim_areas = list(map(pairwise_similarity, zip(*tensors)))
+        sim_areas = np.nanmean(sim_areas)
+        return sim_areas
+    else:
+        tensors = torch.stack(tensors)
     similarity = tensors.matmul(tensors.t())
     n_elements = len(tensors)
     ii, jj = torch.triu_indices(row=n_elements, col=n_elements, offset=1)
@@ -105,13 +107,35 @@ class Monitor:
         for handle in self.handles:
             handle.remove()
 
+    def reset(self):
+        self.ys_output.clear()
+        self.ys_previous = None
+        self.ys_learned.clear()
+
+    def names_active(self, ys_output=True):
+        assert sorted(self.ys_previous.keys()) == sorted(
+            self.module_name.values())
+        if ys_output:
+            assert sorted(self.ys_previous.keys()) == sorted(
+                self.ys_output.keys())
+        names_active = []
+        for name in self.module_name.values():
+            active = self.ys_previous[name] is not None
+            if ys_output:
+                active &= self.ys_output[name] is not None
+            if active:
+                names_active.append(name)
+        return tuple(names_active)
+
     def _update_convergence(self):
         if self.ys_previous is None:
             return
         overlaps = {'k-active': K_ACTIVE}
-        for name in self.ys_output.keys():
+        for name in self.names_active():
             overlaps[name] = self.ys_output[name].matmul(
                 self.ys_previous[name]).item()
+        overlaps = {name: overlaps.get(name, np.nan)
+                    for name in self.module_name.values()}
         names, values = list(zip(*overlaps.items()))
         self.viz.line_update(y=values, opts=dict(
             xlabel='Epoch',
@@ -123,19 +147,23 @@ class Monitor:
     def _update_recall(self, x_samples_learned):
         assert len(self.ys_output) == 0
         ys_learned = {}
-        for name in self.ys_previous.keys():
+        names_active = self.names_active(ys_output=False)
+        for name in names_active:
             ys_learned[name] = self.ys_learned[name] + [self.ys_previous[name]]
             assert len(ys_learned[name]) == len(x_samples_learned)
         recall = defaultdict(float)
         recall['k-active'] = K_ACTIVE
         for i, x in enumerate(x_samples_learned):
-            # ys will be populated via the forward hook
+            # ys_output will be populated via the forward hook
             y_ignored = self.area.recall(x)
-            for name, y_predicted in self.ys_output.items():
+            for name in names_active:
+                y_predicted = self.ys_output[name]
                 y_learned = ys_learned[name][i]
                 n_total = len(ys_learned[name])
                 recall[name] += (y_predicted * y_learned).sum() / n_total
             self.ys_output.clear()
+        recall = {name: recall.get(name, np.nan)
+                  for name in self.module_name.values()}
         names, values = list(zip(*recall.items()))
         self.viz.line_update(y=values, opts=dict(
             xlabel='Epoch',
@@ -163,7 +191,9 @@ class Monitor:
         """
         similarity = dict()
         for name, y_learned in self.ys_learned.items():
-            similarity[name] = pairwise_similarity(y_learned)
+            y_learned = [y for y in y_learned if y is not None]
+            if len(y_learned) > 0:
+                similarity[name] = pairwise_similarity(y_learned)
         return similarity
 
     def trial_finished(self, x_samples_learned):
