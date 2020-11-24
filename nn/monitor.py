@@ -74,23 +74,23 @@ class Monitor:
 
     Parameters
     ----------
-    area : AreaInterface
-        The area or a sequence of areas.
+    model : AreaInterface
+        A NN model, consisting of one or more areas.
     """
 
-    def __init__(self, area):
-        self.area = area
-        env_name = f"{time.strftime('%Y.%m.%d')} {area.__class__.__name__}"
+    def __init__(self, model):
+        self.model = model
+        env_name = f"{time.strftime('%Y.%m.%d')} {model.__class__.__name__}"
         self.viz = VisdomMighty(env=env_name)
         self.viz.close()  # clear previous plots
-        self.log_area_model()
+        self.log_model()
         self.handles = []
         self.module_name = dict()
-        if isinstance(area, torch.nn.Sequential):
+        if isinstance(model, torch.nn.Sequential):
             name_prefix = ''
         else:
-            name_prefix = area.__class__.__name__
-        for name, layer in find_named_layers(area, layer_class=AreaRNN,
+            name_prefix = model.__class__.__name__
+        for name, layer in find_named_layers(model, layer_class=AreaRNN,
                                              name_prefix=name_prefix):
             self.module_name[layer] = name
             handle = layer.register_forward_hook(self._forward_hook)
@@ -159,7 +159,7 @@ class Monitor:
         recall['k-active'] = K_ACTIVE
         for i, x in enumerate(x_samples_learned):
             # ys_output will be populated via the forward hook
-            y_ignored = self.area.recall(x)
+            y_ignored = self.model.recall(x)
             for name in names_active:
                 y_predicted = self.ys_output[name]
                 y_learned = ys_learned[name][i]
@@ -177,7 +177,7 @@ class Monitor:
         ))
 
     def _update_memory_used(self):
-        names, values = list(zip(*self.area.memory_used().items()))
+        names, values = list(zip(*self.model.memory_used().items()))
         self.viz.line_update(y=values, opts=dict(
             xlabel='Epoch',
             title=r"Memory used (L0 norm)",
@@ -236,9 +236,9 @@ class Monitor:
         text = '<br>'.join(lines)
         self.viz.log(text=text, timestamp=False)
 
-    def log_area_model(self, space='-'):
+    def log_model(self, space='-'):
         """
-        Logs the :attr:`area`.
+        Logs the :attr:`model`.
 
         Parameters
         ----------
@@ -247,7 +247,7 @@ class Monitor:
             Default: '-'
         """
         lines = []
-        for line in repr(self.area).splitlines():
+        for line in repr(self.model).splitlines():
             n_spaces = len(line) - len(line.lstrip())
             line = space * n_spaces + line
             lines.append(line)

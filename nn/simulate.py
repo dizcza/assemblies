@@ -14,22 +14,22 @@ class Simulator:
 
     Parameters
     ----------
-    area : AreaInterface
-        The recurrent NN area to train/simulate.
+    model : AreaInterface
+        A NN model, consisting of one or more areas.
     epoch_size : int, optional
         Defines the number of simulations to run for each trial sample.
         Each trial sample represent a complete epoch.
         Default: 10
     """
-    def __init__(self, area, epoch_size=10):
-        self.area = area
-        self.monitor = Monitor(area)
+    def __init__(self, model, epoch_size=10):
+        self.model = model
+        self.monitor = Monitor(model)
         self.epoch_size = epoch_size
         timer.init(epoch_size)
 
     def simulate(self, x_samples):
         """
-        Train and simulate the :attr:`area` with the input `x_samples` data.
+        Train and simulate the :attr:`model` with the input `x_samples` data.
 
         Parameters
         ----------
@@ -42,14 +42,14 @@ class Simulator:
                                          start=1):
             y_prev = None  # inhibit the area
             for step in range(self.epoch_size):
-                y = self.area(x, y_latent=y_prev)
-                if isinstance(self.area, AreaSequential):
+                y = self.model(x, y_latent=y_prev)
+                if isinstance(self.model, AreaSequential):
                     y, y_prev = y
                 else:
                     y_prev = y
                 timer.tick()
                 self.monitor.trial_finished(x_samples[:sample_count])
-            self.area.normalize_weights()
+            self.model.normalize_weights()
             self.monitor.epoch_finished()
 
         self.monitor.log_assembly_similarity(
@@ -71,7 +71,7 @@ def associate_example(n_samples=10):
     xa_samples = [sample_k_active(n=na, k=K_ACTIVE) for _ in range(n_samples)]
     xb_samples = [sample_k_active(n=nb, k=K_ACTIVE) for _ in range(n_samples)]
     x_pairs = list(zip(xa_samples, xb_samples))
-    simulator = Simulator(area=brain, epoch_size=10)
+    simulator = Simulator(model=brain, epoch_size=10)
     simulator.simulate(x_samples=list(zip(xa_samples, [None] * n_samples)))
     simulator.simulate(x_samples=list(zip([None] * n_samples, xb_samples)))
     simulator.simulate(x_samples=x_pairs)
@@ -80,7 +80,7 @@ def associate_example(n_samples=10):
 def simulate_example(n_samples=10):
     area = AreaRNNHebb(N_NEURONS, out_features=N_NEURONS // 2)
     xs = [sample_k_active(n=N_NEURONS, k=K_ACTIVE) for _ in range(n_samples)]
-    Simulator(area=area).simulate(x_samples=xs)
+    Simulator(model=area).simulate(x_samples=xs)
 
 
 if __name__ == '__main__':
