@@ -40,6 +40,17 @@ class GraphArea:
             with self.graph.subgraph(name=f"cluster_{idx}") as c:
                 for nl in named_layers:
                     c.node(nl.name)
+        with self.graph.subgraph(name="cluster_input") as c:
+            for nl in clusters[min(clusters.keys())]:
+                for i, in_feature in enumerate(nl.layer.in_features):
+                    stimuli = f"input{i}_{nl.name}"
+                    c.node(stimuli, shape='point')
+                    self.graph.edge(stimuli, nl.name, label=str(in_feature))
+        with self.graph.subgraph(name="cluster_output") as c:
+            for nl in clusters[max(clusters.keys())]:
+                c.node(f"output_{nl.name}", shape='point')
+                self.graph.edge(nl.name, f"output_{nl.name}",
+                                label=str(nl.layer.out_features))
         keys = tuple(clusters.keys())
         for source_id, sink_id in zip(keys[:-1], keys[1:]):
             for tail in clusters[source_id]:
