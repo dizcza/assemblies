@@ -5,3 +5,4 @@ results/
 doc/_build/
 doc/toctree/
 ignored/
+.ipynb_checkpoints/

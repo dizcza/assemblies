@@ -10,6 +10,8 @@ from mighty.utils.common import find_named_layers
 from nn.areas import AreaInterface, AreaRNN
 from nn.constants import K_ACTIVE
 
+from nn.graph import GraphArea
+
 
 def expected_random_overlap(n, k):
     """
@@ -86,13 +88,9 @@ class Monitor:
         self.log_model()
         self.handles = []
         self.module_name = dict()
-        if isinstance(model, torch.nn.Sequential):
-            name_prefix = ''
-        else:
-            name_prefix = model.__class__.__name__
-        for name, layer in find_named_layers(model, layer_class=AreaRNN,
-                                             name_prefix=name_prefix):
-            self.module_name[layer] = name
+        for name, layer in find_named_layers(model, layer_class=AreaRNN):
+            self.module_name[layer] = f"{name}-{layer.__class__.__name__}"\
+                .lstrip('-')
             handle = layer.register_forward_hook(self._forward_hook)
             self.handles.append(handle)
         self.ys_output = dict()
@@ -253,3 +251,17 @@ class Monitor:
             lines.append(line)
         lines = '<br>'.join(lines)
         self.viz.text(lines)
+
+    def draw_model(self, sample):
+        """
+        Draw the model graph.
+
+        Parameters
+        ----------
+        sample : torch.Tensor
+            Input sample.
+        """
+        graph = GraphArea()
+        svg = graph.draw_model(self.model, sample=sample)
+        self.viz.svg(svgstr=svg, win='graph')
+        self.reset()

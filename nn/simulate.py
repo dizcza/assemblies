@@ -75,6 +75,7 @@ def associate_example(n_samples=10):
     simulator.simulate(x_samples=list(zip(xa_samples, [None] * n_samples)))
     simulator.simulate(x_samples=list(zip([None] * n_samples, xb_samples)))
     simulator.simulate(x_samples=x_pairs)
+    simulator.monitor.draw_model(sample=x_pairs[0])
 
 
 def simulate_example(n_samples=10):
