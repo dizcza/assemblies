@@ -2,7 +2,7 @@ import torch
 from tqdm import tqdm
 
 from mighty.monitor.batch_timer import timer
-from nn.areas import AreaRNNHebb, AreaStack, AreasSequential, AreaInterface
+from nn.areas import AreaRNNHebb, AreaStack, AreaSequential, AreaInterface
 from nn.constants import K_ACTIVE, N_NEURONS
 from nn.monitor import Monitor, expected_random_overlap, pairwise_similarity
 from nn.samplers import *
@@ -23,7 +23,7 @@ class Simulator:
             y_prev = None  # inhibit the area
             for step in range(self.epoch_size):
                 y = self.area(x, y_latent=y_prev)
-                if isinstance(self.area, AreasSequential):
+                if isinstance(self.area, AreaSequential):
                     y, y_prev = y
                 else:
                     y_prev = y
@@ -46,7 +46,7 @@ def associate_example(n_samples=10):
     area_B = AreaRNNHebb(nb, out_features=nc)
     area_C = AreaRNNHebb(nc, nc, out_features=n_out)
     area_AB = AreaStack(area_A, area_B)
-    brain = AreasSequential(area_AB, area_C)
+    brain = AreaSequential(area_AB, area_C)
     print(brain)
     xa_samples = [sample_k_active(n=na, k=K_ACTIVE) for _ in range(n_samples)]
     xb_samples = [sample_k_active(n=nb, k=K_ACTIVE) for _ in range(n_samples)]

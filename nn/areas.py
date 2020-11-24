@@ -352,7 +352,7 @@ class AreaStack(nn.Sequential, AreaInterface):
         return y_out
 
 
-class AreasSequential(nn.Sequential, AreaInterface):
+class AreaSequential(nn.Sequential, AreaInterface):
     """
     A sequence of areas. The output of one area is fed into the next area.
     """

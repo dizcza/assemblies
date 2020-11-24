@@ -23,7 +23,7 @@ Assembly areas
     AreaRNNHebb
     AreaRNNWillshaw
     AreaStack
-    AreasSequential
+    AreaSequential
 
 
 Activation function
@@ -52,5 +52,5 @@ References
 """
 
 from .monitor import Monitor, expected_random_overlap, pairwise_similarity
-from .areas import AreaRNNHebb, AreaRNNWillshaw, AreaStack, AreasSequential, \
+from .areas import AreaRNNHebb, AreaRNNWillshaw, AreaStack, AreaSequential, \
     KWinnersTakeAll
