@@ -358,6 +358,8 @@ class AreaStack(nn.Sequential, AreaInterface):
         nn.Sequential.__init__(self, areas_named)
 
     def forward(self, xs_stim, y_latent=None):
+        if xs_stim is None:
+            xs_stim = [None] * len(self)
         assert len(xs_stim) == len(self)
         if y_latent is None:
             y_latent = [None] * len(xs_stim)
@@ -372,6 +374,8 @@ class AreaSequential(nn.Sequential, AreaInterface):
     """
 
     def forward(self, xs_stim, y_latent=None):
+        if xs_stim is None:
+            xs_stim = [None] * len(self)
         assert len(xs_stim) == len(self)
         y_out = xs_stim
         if y_latent is None:

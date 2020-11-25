@@ -252,14 +252,15 @@ class Monitor:
         lines = '<br>'.join(lines)
         self.viz.text(lines)
 
-    def draw_model(self, sample):
+    def draw_model(self, sample=None):
         """
         Draw the model graph.
 
         Parameters
         ----------
-        sample : torch.Tensor
+        sample : torch.Tensor or None, optional
             Input sample.
+            Default: None
         """
         graph = GraphArea()
         svg = graph.draw_model(self.model, sample=sample)
