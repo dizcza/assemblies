@@ -16,12 +16,16 @@ class GraphArea:
                                       node_attr=dict(shape='box'))
 
     def draw_model(self, model: AreaInterface, sample):
-        model_mode = model.training
-        model.eval()
-        ordered = get_layers_ordered(model, sample,
-                                     ignore_layers=(AreaSequential,
-                                                    KWinnersTakeAll))
-        model.train(model_mode)
+        if isinstance(model, AreaRNN):
+            # a single area layer
+            ordered = {model: 0}
+        else:
+            model_mode = model.training
+            model.eval()
+            ordered = get_layers_ordered(model, sample,
+                                         ignore_layers=(AreaSequential,
+                                                        KWinnersTakeAll))
+            model.train(model_mode)
         ordered_idx = {}
         for i, layer in enumerate(ordered):
             ordered_idx[layer] = i
@@ -33,7 +37,7 @@ class GraphArea:
         clusters = defaultdict(list)
         NamedLayer = namedtuple("NamedLayer", ("name", "layer"))
         for name, layer in find_named_layers(model, layer_class=AreaRNN):
-            name = f"{layer.__class__.__name__} '{name}'"
+            name = f"{layer.__class__.__name__} '{name}'".rstrip(" ''")
             nl = NamedLayer(name=name, layer=layer)
             clusters[ordered_idx[layer]].append(nl)
         for idx, named_layers in clusters.items():

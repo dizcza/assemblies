@@ -2,7 +2,7 @@ import torch
 from tqdm import tqdm
 
 from mighty.monitor.batch_timer import timer
-from nn.areas import AreaRNNHebb, AreaStack, AreaSequential, AreaInterface
+from nn.areas import *
 from nn.constants import K_ACTIVE, N_NEURONS
 from nn.monitor import Monitor, expected_random_overlap, pairwise_similarity
 from nn.samplers import *
@@ -60,11 +60,11 @@ class Simulator:
             timestamp=False)
 
 
-def associate_example(n_samples=10):
+def associate_example(n_samples=10, area_type=AreaRNNHebb):
     na, nb, nc, n_out = N_NEURONS, 2 * N_NEURONS, N_NEURONS // 2, N_NEURONS
-    area_A = AreaRNNHebb(na, out_features=nc)
-    area_B = AreaRNNHebb(nb, out_features=nc)
-    area_C = AreaRNNHebb(nc, nc, out_features=n_out)
+    area_A = area_type(na, out_features=nc)
+    area_B = area_type(nb, out_features=nc)
+    area_C = area_type(nc, nc, out_features=n_out)
     area_AB = AreaStack(area_A, area_B)
     brain = AreaSequential(area_AB, area_C)
     print(brain)
@@ -75,13 +75,12 @@ def associate_example(n_samples=10):
     simulator.simulate(x_samples=list(zip(xa_samples, [None] * n_samples)))
     simulator.simulate(x_samples=list(zip([None] * n_samples, xb_samples)))
     simulator.simulate(x_samples=x_pairs)
-    simulator.monitor.draw_model(sample=x_pairs[0])
 
 
 def simulate_example(n_samples=10):
     area = AreaRNNHebb(N_NEURONS, out_features=N_NEURONS // 2)
     xs = [sample_k_active(n=N_NEURONS, k=K_ACTIVE) for _ in range(n_samples)]
-    Simulator(model=area).simulate(x_samples=xs)
+    Simulator(model=area, epoch_size=10).simulate(x_samples=xs)
 
 
 if __name__ == '__main__':

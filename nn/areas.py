@@ -10,6 +10,15 @@ from nn.constants import K_ACTIVE
 from nn.samplers import sample_bernoulli
 
 
+__all__ = [
+    "KWinnersTakeAll",
+    "AreaRNNHebb",
+    "AreaRNNWillshaw",
+    "AreaStack",
+    "AreaSequential"
+]
+
+
 class KWinnersTakeAll(nn.Module):
     """
     K-winners-take-all activation function.

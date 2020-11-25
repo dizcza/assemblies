@@ -5,11 +5,11 @@ import numpy as np
 import time
 import torch
 
+from mighty.monitor.batch_timer import timer
 from mighty.monitor.viz import VisdomMighty
 from mighty.utils.common import find_named_layers
 from nn.areas import AreaInterface, AreaRNN
 from nn.constants import K_ACTIVE
-
 from nn.graph import GraphArea
 
 
@@ -70,6 +70,42 @@ def pairwise_similarity(tensors):
     return similarity
 
 
+class VisdomBuffered(VisdomMighty):
+    def __init__(self, legend_labels, env="main"):
+        super().__init__(env=env)
+        self.close()  # clear previous plots
+        self.legend_labels = ('k_active',) + tuple(legend_labels)
+        self.opts = {'recall': dict(
+            xlabel='Epoch',
+            ylabel='overlap',
+            legend=self.legend_labels,
+            title='recall (y_pred, y_learned)',
+        ), 'convergence': dict(
+            xlabel='Epoch',
+            ylabel='overlap',
+            legend=self.legend_labels,
+            title='convergence (y, y_prev)',
+        )}
+        self.data_epoch = defaultdict(list)
+
+    def send_buffered(self):
+        for win in self.data_epoch.keys():
+            n_trials = len(self.data_epoch[win])
+            y = np.full((n_trials, len(self.legend_labels)), fill_value=np.nan)
+            times, data = zip(*self.data_epoch[win])
+            for data_dict, yi in zip(data, y):
+                for label, val in data_dict.items():
+                    yi[self.legend_labels.index(label)] = val
+            y[:, 0] = K_ACTIVE
+            times = np.tile(times, reps=(len(self.legend_labels), 1)).T
+            self.line(Y=y, X=times, win=win, opts=self.opts[win],
+                      update='append')
+        self.data_epoch.clear()
+
+    def buffer(self, data, win):
+        self.data_epoch[win].append((timer.epoch_progress(), data))
+
+
 class Monitor:
     """
     Monitor the training progress.
@@ -82,10 +118,11 @@ class Monitor:
 
     def __init__(self, model):
         self.model = model
-        env_name = f"{time.strftime('%Y.%m.%d')} {model.__class__.__name__}"
-        self.viz = VisdomMighty(env=env_name)
-        self.viz.close()  # clear previous plots
-        self.log_model()
+
+        self.ys_output = dict()
+        self.ys_previous = None
+        self.ys_learned = defaultdict(list)
+
         self.handles = []
         self.module_name = dict()
         for name, layer in find_named_layers(model, layer_class=AreaRNN):
@@ -93,9 +130,12 @@ class Monitor:
                 .lstrip('-')
             handle = layer.register_forward_hook(self._forward_hook)
             self.handles.append(handle)
-        self.ys_output = dict()
-        self.ys_previous = None
-        self.ys_learned = defaultdict(list)
+
+        env_name = f"{time.strftime('%Y.%m.%d')} {model.__class__.__name__}"
+        self.viz = VisdomBuffered(legend_labels=self.module_name.values(),
+                                  env=env_name)
+        self.log_model()
+        self.draw_model()
 
     def _forward_hook(self, module, input, output):
         name = self.module_name[module]
@@ -129,29 +169,14 @@ class Monitor:
                 names_active.append(name)
         return tuple(names_active)
 
-    def _legend_labels(self, with_k_active=True):
-        labels = []
-        if with_k_active:
-            labels.append('k-active')
-        labels.extend(self.module_name.values())
-        return labels
-
     def _update_convergence(self):
         if self.ys_previous is None:
             return
-        overlaps = {'k-active': K_ACTIVE}
+        overlaps = {}
         for name in self.names_active():
             overlaps[name] = self.ys_output[name].matmul(
                 self.ys_previous[name]).item()
-        overlaps = {name: overlaps.get(name, np.nan)
-                    for name in self._legend_labels()}
-        names, values = list(zip(*overlaps.items()))
-        self.viz.line_update(y=values, opts=dict(
-            xlabel='Epoch',
-            ylabel='overlap',
-            title='convergence (y, y_prev)',
-            legend=names,
-        ))
+        self.viz.buffer(data=overlaps, win='convergence')
 
     def _update_recall(self, x_samples_learned):
         assert len(self.ys_output) == 0
@@ -161,7 +186,6 @@ class Monitor:
             ys_learned[name] = self.ys_learned[name] + [self.ys_previous[name]]
             assert len(ys_learned[name]) == len(x_samples_learned)
         recall = defaultdict(float)
-        recall['k-active'] = K_ACTIVE
         for i, x in enumerate(x_samples_learned):
             # ys_output will be populated via the forward hook
             y_ignored = self.model.recall(x)
@@ -171,17 +195,9 @@ class Monitor:
                 n_total = len(ys_learned[name])
                 recall[name] += (y_predicted * y_learned).sum() / n_total
             self.ys_output.clear()
-        recall = {name: recall.get(name, np.nan)
-                  for name in self._legend_labels()}
-        names, values = list(zip(*recall.items()))
-        self.viz.line_update(y=values, opts=dict(
-            xlabel='Epoch',
-            ylabel='overlap',
-            title='recall (y_pred, y_learned)',
-            legend=names,
-        ))
+        self.viz.buffer(data=recall, win='recall')
 
-    def _update_memory_used(self):
+    def update_memory_used(self):
         names, values = list(zip(*self.model.memory_used().items()))
         self.viz.line_update(y=values, opts=dict(
             xlabel='Epoch',
@@ -220,7 +236,6 @@ class Monitor:
         self.ys_previous = self.ys_output.copy()
         self.ys_output.clear()
         self._update_recall(x_samples_learned)
-        self._update_memory_used()
 
     def epoch_finished(self):
         """
@@ -230,7 +245,9 @@ class Monitor:
         for name, y_final in self.ys_previous.items():
             self.ys_learned[name].append(y_final)
         self.ys_previous = None
+        self.update_memory_used()
         self.update_weight_histogram()
+        self.viz.send_buffered()
 
     def log_assembly_similarity(self, input_similarity=None):
         assembly_similarity = self.assembly_similarity()
@@ -258,7 +275,7 @@ class Monitor:
             line = space * n_spaces + line
             lines.append(line)
         lines = '<br>'.join(lines)
-        self.viz.text(lines)
+        self.viz.log(lines, timestamp=False)
 
     def draw_model(self, sample=None):
         """
