@@ -9,7 +9,7 @@ from mighty.monitor.batch_timer import timer
 from mighty.monitor.viz import VisdomMighty
 from mighty.utils.common import find_named_layers
 from nn.areas import AreaInterface, AreaRNN
-from nn.constants import K_ACTIVE
+from nn.constants import K_ACTIVE, N_NEURONS
 from nn.graph import GraphArea
 
 
@@ -53,7 +53,7 @@ def pairwise_similarity(tensors):
 
     """
     tensors = [t for t in tensors if t is not None]
-    if len(tensors) == 0:
+    if len(tensors) <= 1:
         return np.nan
     if not isinstance(tensors[0], torch.Tensor):
         # multiple incoming areas
@@ -85,11 +85,18 @@ class VisdomBuffered(VisdomMighty):
             ylabel='overlap',
             legend=self.legend_labels,
             title='convergence (y, y_prev)',
+        ), 'support': dict(
+            xlabel='Epoch',
+            ylabel='support',
+            legend=self.legend_labels,
+            title='support size across epoch trials'
         )}
         self.data_epoch = defaultdict(list)
 
     def send_buffered(self):
         for win in self.data_epoch.keys():
+            data_epoch_finish = {name: np.nan for name in self.legend_labels}
+            self.buffer(data=data_epoch_finish, win=win)
             n_trials = len(self.data_epoch[win])
             y = np.full((n_trials, len(self.legend_labels)), fill_value=np.nan)
             times, data = zip(*self.data_epoch[win])
@@ -122,6 +129,7 @@ class Monitor:
         self.ys_output = dict()
         self.ys_previous = None
         self.ys_learned = defaultdict(list)
+        self.support = {}
 
         self.handles = []
         self.module_name = dict()
@@ -134,6 +142,7 @@ class Monitor:
         env_name = f"{time.strftime('%Y.%m.%d')} {model.__class__.__name__}"
         self.viz = VisdomBuffered(legend_labels=self.module_name.values(),
                                   env=env_name)
+        self.log_expected_random_overlap()
         self.log_model()
         self.draw_model()
 
@@ -153,6 +162,7 @@ class Monitor:
         self.ys_output.clear()
         self.ys_previous = None
         self.ys_learned.clear()
+        self.support.clear()
 
     def names_active(self, ys_output=True):
         assert sorted(self.ys_previous.keys()) == sorted(
@@ -177,6 +187,17 @@ class Monitor:
             overlaps[name] = self.ys_output[name].matmul(
                 self.ys_previous[name]).item()
         self.viz.buffer(data=overlaps, win='convergence')
+
+    def _update_support(self):
+        support = {}
+        for name, y in self.ys_output.items():
+            if y is None:
+                continue
+            if name not in self.support:
+                self.support[name] = y.clone().bool()
+            self.support[name] |= y.bool()
+            support[name] = self.support[name].sum()
+        self.viz.buffer(data=support, win='support')
 
     def _update_recall(self, x_samples_learned):
         assert len(self.ys_output) == 0
@@ -233,6 +254,7 @@ class Monitor:
             (multiple incoming areas).
         """
         self._update_convergence()
+        self._update_support()
         self.ys_previous = self.ys_output.copy()
         self.ys_output.clear()
         self._update_recall(x_samples_learned)
@@ -245,19 +267,24 @@ class Monitor:
         for name, y_final in self.ys_previous.items():
             self.ys_learned[name].append(y_final)
         self.ys_previous = None
+        self.support.clear()
         self.update_memory_used()
         self.update_weight_histogram()
         self.viz.send_buffered()
+
+    def log_expected_random_overlap(self, n=N_NEURONS, k=K_ACTIVE):
+        self.viz.log(f"Expected random overlap (n={n}, k={k}): "
+                     f"{expected_random_overlap(n=n, k=k):.3f}")
 
     def log_assembly_similarity(self, input_similarity=None):
         assembly_similarity = self.assembly_similarity()
         if input_similarity:
             assembly_similarity['input'] = input_similarity
-        lines = ["Learned assemblies similarity:"]
+        lines = ["Learned assemblies intra-similarity:"]
         for name, similarity in assembly_similarity.items():
             lines.append(f"--{name}: {similarity:.3f}")
         text = '<br>'.join(lines)
-        self.viz.log(text=text, timestamp=False)
+        self.viz.log(text=text)
 
     def log_model(self, space='-'):
         """
@@ -269,13 +296,13 @@ class Monitor:
             A space substitution to correctly parse HTML later on.
             Default: '-'
         """
-        lines = []
+        lines = ["Area model:"]
         for line in repr(self.model).splitlines():
             n_spaces = len(line) - len(line.lstrip())
             line = space * n_spaces + line
             lines.append(line)
         lines = '<br>'.join(lines)
-        self.viz.log(lines, timestamp=False)
+        self.viz.log(lines)
 
     def draw_model(self, sample=None):
         """

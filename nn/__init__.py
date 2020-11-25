@@ -14,6 +14,9 @@ The forward pass is defined in two steps:
     \end{cases}
     :label: forward
 
+where :math:`\bold{x}_l` are input stimuli from an incoming layer :math:`l`
+and :math:`\bold{y}^{latent}` are latent activations from a previous step;
+:math:`k` is the number of active output neurons (winners).
 
 Assembly areas
 --------------

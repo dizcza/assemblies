@@ -132,7 +132,7 @@ class AreaInterface(nn.Module, ABC):
 
 
 class AreaRNN(AreaInterface, ABC):
-    def __init__(self, *in_features: int, out_features, p_synapse=0.01,
+    def __init__(self, *in_features: int, out_features, p_synapse=0.05,
                  recurrent_coef=1., sampler=sample_bernoulli):
         super().__init__()
         self.in_features = in_features
@@ -193,7 +193,6 @@ class AreaRNN(AreaInterface, ABC):
                 self.update_weight(self.weight_recurrent, x=y_latent, y=y_out)
         return y_out
 
-    @abstractmethod
     def update_weight(self, weight, x, y):
         """
         Update the weight, given the activations.
@@ -250,9 +249,17 @@ class AreaRNNHebb(AreaRNN):
 
     The update rule, if :math:`x_j` and :math:`y_i` neurons fired:
 
-    .. math::
-        W_{ij} = W_{ij} + \beta
-        :label: update-hebb
+    * additive:
+
+        .. math::
+            W_{ij} = W_{ij} + \beta
+            :label: update-additive
+
+    * multiplicative:
+
+        .. math::
+            W_{ij} = W_{ij} * (1 + \beta)
+            :label: update-multiplicative
 
     After each epoch, many repetitions of the same input trial, the weights
     are normalized to have ``1.0`` in its pre-synaptic sum for each neuron.
@@ -266,27 +273,42 @@ class AreaRNNHebb(AreaRNN):
     p_synapse : float, optional
         The initial probability of recurrent and afferent synaptic
         connectivity.
-        Default: 0.01
+        Default: 0.05
     recurrent_coef : float, optional
         The recurrent coefficient :math:`\alpha` in :eq:`forward`.
         Default: 1
     learning_rate : float, optional
-        The plasticity coefficient :math:`\beta` in :eq:`update-hebb`.
+        The plasticity coefficient :math:`\beta` in :eq:`update-additive` and
+        :eq:`update-multiplicative`.
         Default: 0.1
     sampler : {sample_bernoulli, sample_uniform_masked}, optional
         Weights initialization function to call: either Bernoulli or uniform.
         Default: sample_bernoulli
+    update : {'additive', 'multiplicative'}, optional
+        The weight update learning rule.
+        Default: 'additive'
+
+    Notes
+    -----
+    `'additive'` update learning rule allows new weights to grow, as opposed
+    to `'multiplicative'`.
 
     """
-    def __init__(self, *in_features: int, out_features, p_synapse=0.01,
+    def __init__(self, *in_features: int, out_features, p_synapse=0.05,
                  recurrent_coef=1., learning_rate=0.1,
-                 sampler=sample_bernoulli):
+                 sampler=sample_bernoulli, update='additive'):
         super().__init__(*in_features, out_features=out_features,
                          p_synapse=p_synapse, recurrent_coef=recurrent_coef,
                          sampler=sampler)
         self.learning_rate = learning_rate
+        if update == 'additive':
+            self.update_weight = self.update_weight_additive
+        elif update == 'multiplicative':
+            self.update_weight = self.update_weight_multiplicative
+        else:
+            raise ValueError(f"Invalid update rule: '{update}'")
 
-    def update_weight(self, weight, x, y):
+    def update_weight_additive(self, weight, x, y):
         # w_ij = w_ij + learning_rate, if x_j and y_i fired:
         # w_ij = w_ij + learning_rate * x_j * y_i
         weight.addr_(y, x, alpha=self.learning_rate)
@@ -300,6 +322,10 @@ class AreaRNNHebb(AreaRNN):
         presum = weight.sum(dim=1, keepdim=True)
         presum[presum == 0] = 1  # all elements in a row are zeros
         weight /= presum
+
+    def extra_repr(self):
+        update = self.update_weight.__name__.lstrip('update_weight_')
+        return f"{super().extra_repr()}, update='{update}'"
 
 
 class AreaRNNWillshaw(AreaRNN):
@@ -323,7 +349,7 @@ class AreaRNNWillshaw(AreaRNN):
     p_synapse : float, optional
         The initial probability of recurrent and afferent synaptic
         connectivity.
-        Default: 0.01
+        Default: 0.05
     recurrent_coef : float, optional
         The recurrent coefficient :math:`\alpha` in :eq:`forward`.
         Default: 1.0
@@ -335,8 +361,8 @@ class AreaRNNWillshaw(AreaRNN):
 
     """
 
-    def __init__(self, *in_features: int, out_features, p_synapse=0.01,
-                 recurrent_coef=1):
+    def __init__(self, *in_features: int, out_features, p_synapse=0.05,
+                 recurrent_coef=1, **ignored):
         super().__init__(*in_features,
                          out_features=out_features,
                          p_synapse=p_synapse,
