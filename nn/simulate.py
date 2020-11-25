@@ -63,27 +63,32 @@ class Simulator:
         mode_saved = self.model.training
         self.model.eval()
         n_parents = len(x_samples[0])
-        ys_all = []
-        for i in range(n_parents):
+        ys_parents = []
+        for parent_active in range(n_parents):
             ys = []
             for x_pair in x_samples:
                 assert isinstance(x_pair, (list, tuple))
                 x_active = [None] * len(x_pair)
-                x_active[i] = x_pair[i]
+                x_active[parent_active] = x_pair[parent_active]
                 y, y_latent = self.model(x_active)
                 ys.append(y)
             ys = torch.stack(ys)  # (n_samples, n_neurons)
-            ys_all.append(ys)
-        prod = (ys_all[0] * ys_all[1]).mean(dim=1).mean()
-        print(f"Learned assemblies intra-similarity: {prod}")
+            ys_parents.append(ys)
+        ys_parents = torch.stack(ys_parents, dim=1)  # (S, P, N)
+        pairwise = ys_parents.bmm(ys_parents.transpose(1, 2))  # (S, P, P)
+        ii, jj = torch.triu_indices(row=n_parents, col=n_parents, offset=1)
+        similarity = pairwise[:, ii, jj].mean()
+        similarity /= K_ACTIVE
+        self.monitor.viz.log(f"Learned assemblies inter-similarity: "
+                             f"{similarity:.3f}")
         self.model.train(mode_saved)
 
 
-def associate_example(n_samples=1, area_type=AreaRNNHebb):
+def associate_example(n_samples=10, area_type=AreaRNNHebb):
     n_stim_a, n_stim_b = N_NEURONS, N_NEURONS // 2
     na, nb, nc = N_NEURONS * 2, int(N_NEURONS * 1.5), N_NEURONS
     area_type = partial(area_type, p_synapse=0.05, update='multiplicative',
-                        sampler=sample_uniform_masked)
+                        learning_rate=0.1)
     area_A = area_type(N_NEURONS, out_features=na)
     area_B = area_type(N_NEURONS // 2, out_features=nb)
     area_C = area_type(na, nb, out_features=nc)

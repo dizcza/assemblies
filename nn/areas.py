@@ -286,7 +286,7 @@ class AreaRNNHebb(AreaRNN):
         Default: sample_bernoulli
     update : {'additive', 'multiplicative'}, optional
         The weight update learning rule.
-        Default: 'additive'
+        Default: 'multiplicative'
 
     Notes
     -----
@@ -296,7 +296,7 @@ class AreaRNNHebb(AreaRNN):
     """
     def __init__(self, *in_features: int, out_features, p_synapse=0.05,
                  recurrent_coef=1., learning_rate=0.1,
-                 sampler=sample_bernoulli, update='additive'):
+                 sampler=sample_bernoulli, update='multiplicative'):
         super().__init__(*in_features, out_features=out_features,
                          p_synapse=p_synapse, recurrent_coef=recurrent_coef,
                          sampler=sampler)
