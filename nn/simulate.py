@@ -34,8 +34,9 @@ class Simulator:
 
         Parameters
         ----------
-        x_samples : list of torch.Tensor
-            The input stimuli samples list.
+        x_samples : list
+            The input stimuli samples list. Each entry can be either a vector
+            tensor or, in case of :class:`AreaStack`, a pair of tensors.
         """
         self.monitor.reset()
         for sample_count, x in enumerate(tqdm(x_samples, desc="Projecting"),
@@ -65,11 +66,11 @@ class Simulator:
         Parameters
         ----------
         x_samples : list of tuple of torch.Tensor
-            A list of sample pairs.
+            The input stimuli samples list. In this case, each entry must be
+            a pair of vectors.
 
         """
         assert isinstance(self.model, AreaSequential)
-        self.monitor.reset()
         mode_saved = self.model.training
         self.model.eval()
         n_parents = len(x_samples[0])
@@ -82,6 +83,7 @@ class Simulator:
                 x_active[parent_active] = x_pair[parent_active]
                 y, y_latent = self.model(x_active)
                 ys.append(y)
+            self.monitor.reset()  # we don't need the history
             ys = torch.stack(ys)  # (n_samples, n_neurons)
             ys_parents.append(ys)
         ys_parents = torch.stack(ys_parents, dim=1)  # (S, P, N)

@@ -176,7 +176,7 @@ class Monitor:
         self.ys_learned.clear()
         self.support.clear()
 
-    def names_active(self, ys_output=True):
+    def _names_active(self, ys_output=True):
         assert sorted(self.ys_previous.keys()) == sorted(
             self.module_name.values())
         if ys_output:
@@ -195,7 +195,7 @@ class Monitor:
         if self.ys_previous is None:
             return
         overlaps = {}
-        for name in self.names_active():
+        for name in self._names_active():
             overlaps[name] = self.ys_output[name].matmul(
                 self.ys_previous[name]).item()
         self.viz.buffer(data=overlaps, win='convergence')
@@ -214,7 +214,7 @@ class Monitor:
     def _update_recall(self, x_samples_learned):
         assert len(self.ys_output) == 0
         ys_learned = {}
-        names_active = self.names_active(ys_output=False)
+        names_active = self._names_active(ys_output=False)
         for name in names_active:
             ys_learned[name] = self.ys_learned[name] + [self.ys_previous[name]]
             assert len(ys_learned[name]) == len(x_samples_learned)
@@ -231,6 +231,9 @@ class Monitor:
         self.viz.buffer(data=recall, win='recall')
 
     def update_memory_used(self):
+        """
+        Plot the weights histograms.
+        """
         names, values = list(zip(*self.model.memory_used().items()))
         self.viz.line_update(y=values, opts=dict(
             xlabel='Epoch',
@@ -285,10 +288,45 @@ class Monitor:
         self.viz.send_buffered()
 
     def log_expected_random_overlap(self, n=N_NEURONS, k=K_ACTIVE):
+        r"""
+        Log the expected random overlap between samples, drawn from
+        `Binomial(n, k)` distribution.
+
+        Parameters
+        ----------
+        n : int, optional
+            The number of neurons in a layer.
+            Default: 1000
+        k : int, optional
+            The number of active neurons in a layer.
+            Default: 50
+
+        """
         self.viz.log(f"Expected random overlap (n={n}, k={k}): "
                      f"{expected_random_overlap(n=n, k=k):.3f}")
 
     def update_assembly_similarity(self, input_similarity=None, log=False):
+        r"""
+        Plot the :math:`L_{0/1}` similarity of the projected (learned)
+        assemblies.
+
+        The similarity of two binary vectors :math:`\bold{x}` and
+        :math:`\bold{y}` of size `n` that have `k` active neurons is computed
+        as their dot product, divided by `k`:
+
+        .. math::
+            \frac{\bold{x} \cdot \bold{y}}{k}
+
+        Parameters
+        ----------
+        input_similarity : float or None, optional
+            If given, plot the input vectors similarity as well.
+            Default: None
+        log : bool, optional
+            If True, log the similarities as text.
+            Default: False
+
+        """
         assembly_similarity = self.assembly_similarity()
         if input_similarity is not None:
             assembly_similarity['input'] = input_similarity
@@ -309,7 +347,7 @@ class Monitor:
 
     def log_model(self, space='-'):
         """
-        Logs the :attr:`model`.
+        Log the :attr:`model`.
 
         Parameters
         ----------
@@ -342,11 +380,12 @@ class Monitor:
 
     def update_weight_histogram(self):
         """
-        Update the model weights histogram.
+        Plot the model weights histogram.
         """
         for name, param in self.model.named_parameters():
             self.viz.histogram(X=param.data.view(-1), win=name, opts=dict(
-                xlabel='Weight norm',
-                ylabel='# bins (distribution)',
-                title=name,
+                xlabel='Weight values',
+                ylabel='count',
+                title=f"{name} histogram",
+                ytype='log',
             ))

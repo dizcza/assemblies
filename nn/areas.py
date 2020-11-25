@@ -79,7 +79,7 @@ class AreaInterface(nn.Module, ABC):
         self.train(mode)
         return y_out
 
-    def complete_from_input(self, xs_partial, y_latent=None):
+    def complete_from_input(self, xs_partial, y_partial=None):
         """
         Complete the pattern from the partial input.
 
@@ -88,10 +88,10 @@ class AreaInterface(nn.Module, ABC):
         Parameters
         ----------
         xs_partial : torch.Tensor or tuple of torch.Tensor
-            Input vectors from the incoming areas.
-        y_latent : torch.Tensor or None, optional
+            Partially active input vectors from the incoming areas.
+        y_partial : torch.Tensor or None, optional
             The stored latent (hidden activations) vector from the previous
-            step.
+            step with partial activations.
             Default: None
 
         Returns
@@ -101,7 +101,7 @@ class AreaInterface(nn.Module, ABC):
         """
         mode = self.training
         self.eval()
-        y_out = self(xs_partial, y_latent=y_latent)
+        y_out = self(xs_partial, y_latent=y_partial)
         self.train(mode)
         return y_out
 
