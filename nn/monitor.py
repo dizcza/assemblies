@@ -129,6 +129,13 @@ class Monitor:
                 names_active.append(name)
         return tuple(names_active)
 
+    def _legend_labels(self, with_k_active=True):
+        labels = []
+        if with_k_active:
+            labels.append('k-active')
+        labels.extend(self.module_name.values())
+        return labels
+
     def _update_convergence(self):
         if self.ys_previous is None:
             return
@@ -137,7 +144,7 @@ class Monitor:
             overlaps[name] = self.ys_output[name].matmul(
                 self.ys_previous[name]).item()
         overlaps = {name: overlaps.get(name, np.nan)
-                    for name in self.module_name.values()}
+                    for name in self._legend_labels()}
         names, values = list(zip(*overlaps.items()))
         self.viz.line_update(y=values, opts=dict(
             xlabel='Epoch',
@@ -165,7 +172,7 @@ class Monitor:
                 recall[name] += (y_predicted * y_learned).sum() / n_total
             self.ys_output.clear()
         recall = {name: recall.get(name, np.nan)
-                  for name in self.module_name.values()}
+                  for name in self._legend_labels()}
         names, values = list(zip(*recall.items()))
         self.viz.line_update(y=values, opts=dict(
             xlabel='Epoch',
@@ -223,6 +230,7 @@ class Monitor:
         for name, y_final in self.ys_previous.items():
             self.ys_learned[name].append(y_final)
         self.ys_previous = None
+        self.update_weight_histogram()
 
     def log_assembly_similarity(self, input_similarity=None):
         assembly_similarity = self.assembly_similarity()
@@ -266,3 +274,14 @@ class Monitor:
         svg = graph.draw_model(self.model, sample=sample)
         self.viz.svg(svgstr=svg, win='graph')
         self.reset()
+
+    def update_weight_histogram(self):
+        """
+        Update the model weights histogram.
+        """
+        for name, param in self.model.named_parameters():
+            self.viz.histogram(X=param.data.view(-1), win=name, opts=dict(
+                xlabel='Weight norm',
+                ylabel='# bins (distribution)',
+                title=name,
+            ))
