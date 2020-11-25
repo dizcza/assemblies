@@ -74,37 +74,49 @@ class VisdomBuffered(VisdomMighty):
     def __init__(self, legend_labels, env="main"):
         super().__init__(env=env)
         self.close()  # clear previous plots
-        self.legend_labels = ('k_active',) + tuple(legend_labels)
+        self._legend_labels = tuple(legend_labels)
+        legend_labels = self.legend_labels('k-active')
         self.opts = {'recall': dict(
             xlabel='Epoch',
             ylabel='overlap',
-            legend=self.legend_labels,
+            legend=legend_labels,
             title='recall (y_pred, y_learned)',
         ), 'convergence': dict(
             xlabel='Epoch',
             ylabel='overlap',
-            legend=self.legend_labels,
+            legend=legend_labels,
             title='convergence (y, y_prev)',
         ), 'support': dict(
             xlabel='Epoch',
             ylabel='support',
-            legend=self.legend_labels,
+            legend=legend_labels,
             title='support size across epoch trials'
+        ), 'similarity': dict(
+            xlabel='Epoch',
+            ylabel='similarity',
+            legend=self.legend_labels('inter'),
+            title="Learned assemblies intra- and inter-similarity",
+            markers=True,
+            markersize=8,
         )}
         self.data_epoch = defaultdict(list)
 
+    def legend_labels(self, *prepend):
+        return prepend + self._legend_labels
+
     def send_buffered(self):
+        legend_labels = self.legend_labels('k-active')
         for win in self.data_epoch.keys():
-            data_epoch_finish = {name: np.nan for name in self.legend_labels}
-            self.buffer(data=data_epoch_finish, win=win)
+            data_epoch_finished = {name: np.nan for name in legend_labels}
+            self.buffer(data=data_epoch_finished, win=win)
             n_trials = len(self.data_epoch[win])
-            y = np.full((n_trials, len(self.legend_labels)), fill_value=np.nan)
+            y = np.full((n_trials, len(legend_labels)), fill_value=np.nan)
             times, data = zip(*self.data_epoch[win])
             for data_dict, yi in zip(data, y):
                 for label, val in data_dict.items():
-                    yi[self.legend_labels.index(label)] = val
+                    yi[legend_labels.index(label)] = val
             y[:, 0] = K_ACTIVE
-            times = np.tile(times, reps=(len(self.legend_labels), 1)).T
+            times = np.tile(times, reps=(len(legend_labels), 1)).T
             self.line(Y=y, X=times, win=win, opts=self.opts[win],
                       update='append')
         self.data_epoch.clear()
@@ -276,15 +288,24 @@ class Monitor:
         self.viz.log(f"Expected random overlap (n={n}, k={k}): "
                      f"{expected_random_overlap(n=n, k=k):.3f}")
 
-    def log_assembly_similarity(self, input_similarity=None):
+    def update_assembly_similarity(self, input_similarity=None, log=False):
         assembly_similarity = self.assembly_similarity()
-        if input_similarity:
+        if input_similarity is not None:
             assembly_similarity['input'] = input_similarity
-        lines = ["Learned assemblies intra-similarity:"]
-        for name, similarity in assembly_similarity.items():
-            lines.append(f"--{name}: {similarity:.3f}")
-        text = '<br>'.join(lines)
-        self.viz.log(text=text)
+        legend = self.viz.opts['similarity']['legend']
+        similarity_nans = [assembly_similarity.get(name, np.nan)
+                           for name in legend]
+        x = np.stack([[timer.epoch] * len(legend), similarity_nans], axis=1)
+        self.viz.scatter(X=x, Y=range(1, len(legend) + 1),
+                         opts=self.viz.opts['similarity'], win='similarity',
+                         update='append')
+
+        if log:
+            lines = ["Learned assemblies intra-similarity:"]
+            for name, similarity in assembly_similarity.items():
+                lines.append(f"--{name}: {similarity:.3f}")
+            text = '<br>'.join(lines)
+            self.viz.log(text=text)
 
     def log_model(self, space='-'):
         """

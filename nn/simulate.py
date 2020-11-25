@@ -1,11 +1,11 @@
 import torch
-from tqdm import tqdm
 from functools import partial
+from tqdm import tqdm
 
 from mighty.monitor.batch_timer import timer
 from nn.areas import *
 from nn.constants import K_ACTIVE, N_NEURONS
-from nn.monitor import Monitor, expected_random_overlap, pairwise_similarity
+from nn.monitor import Monitor, pairwise_similarity
 from nn.samplers import *
 
 
@@ -38,7 +38,6 @@ class Simulator:
             The input stimuli samples list.
         """
         self.monitor.reset()
-        self.monitor.viz.log(f"Simulate epoch_start={timer.epoch}")
         for sample_count, x in enumerate(tqdm(x_samples, desc="Projecting"),
                                          start=1):
             y_prev = None  # inhibit the area
@@ -54,10 +53,21 @@ class Simulator:
             self.monitor.epoch_finished()
 
         if len(x_samples) > 1:
-            self.monitor.log_assembly_similarity(
+            self.monitor.update_assembly_similarity(
                 input_similarity=pairwise_similarity(x_samples))
 
     def associate_benchmark(self, x_samples):
+        """
+        Measure `associate` operation overlap between projected assemblies
+        from two (or more) parent areas. Each assembly is projected
+        individually.
+
+        Parameters
+        ----------
+        x_samples : list of tuple of torch.Tensor
+            A list of sample pairs.
+
+        """
         assert isinstance(self.model, AreaSequential)
         self.monitor.reset()
         mode_saved = self.model.training
@@ -81,6 +91,10 @@ class Simulator:
         similarity /= K_ACTIVE
         self.monitor.viz.log(f"Learned assemblies inter-similarity: "
                              f"{similarity:.3f}")
+        self.monitor.viz.scatter(X=[[timer.epoch + 1, similarity]], Y=[1],
+                                 win='similarity', name='inter',
+                                 opts=self.monitor.viz.opts['similarity'],
+                                 update='append')
         self.model.train(mode_saved)
 
 
