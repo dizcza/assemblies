@@ -116,9 +116,10 @@ class AreaInterface(nn.Module, ABC):
         Normalize the pre-synaptic weights sum to ``1.0``.
         """
         for module in find_layers(self, layer_class=AreaRNN):
-            for w_in in module.parameters(recurse=False):
+            for weight in module.parameters(recurse=False):
                 # input and recurrent weights
-                module._normalize_weight(w_in)
+                module._normalize_weight(weight)
+                assert torch.isfinite(weight).all()
 
 
 class AreaRNN(AreaInterface, ABC):
@@ -287,7 +288,9 @@ class AreaRNNHebb(AreaRNN):
         weight.mul_(1 + self.learning_rate * y.unsqueeze(1) * x.unsqueeze(0))
 
     def _normalize_weight(self, weight):
-        weight /= weight.sum(dim=1, keepdim=True)
+        presum = weight.sum(dim=1, keepdim=True)
+        presum[presum == 0] = 1  # all elements in a row are zeros
+        weight /= presum
 
 
 class AreaRNNWillshaw(AreaRNN):
