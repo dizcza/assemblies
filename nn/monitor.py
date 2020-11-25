@@ -94,7 +94,7 @@ class VisdomBuffered(VisdomMighty):
         ), 'similarity': dict(
             xlabel='Epoch',
             ylabel='similarity',
-            legend=self.legend_labels('inter'),
+            legend=self._legend_labels,
             title="Learned assemblies intra- and inter-similarity",
             markers=True,
             markersize=8,

@@ -92,7 +92,7 @@ class Simulator:
         self.monitor.viz.log(f"Learned assemblies inter-similarity: "
                              f"{similarity:.3f}")
         self.monitor.viz.scatter(X=[[timer.epoch + 1, similarity]], Y=[1],
-                                 win='similarity', name='inter',
+                                 win='similarity', name='A-B via C',
                                  opts=self.monitor.viz.opts['similarity'],
                                  update='append')
         self.model.train(mode_saved)
