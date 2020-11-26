@@ -340,6 +340,10 @@ class AreaRNNWillshaw(AreaRNN):
         W_{ij} = 1
         :label: update-will
 
+    This update rule is the simplest possible update rule that requires
+    neither the learning rate nor the weight normalization, compared to
+    :class:`AreaRNNHebb`.
+
     Parameters
     ----------
     *in_features

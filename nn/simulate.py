@@ -100,7 +100,7 @@ class Simulator:
         self.model.train(mode_saved)
 
 
-def associate_example(n_samples=10, area_type=AreaRNNHebb):
+def associate_example(n_samples=1, area_type=AreaRNNHebb):
     n_stim_a, n_stim_b = N_NEURONS, N_NEURONS // 2
     na, nb, nc = N_NEURONS * 2, int(N_NEURONS * 1.5), N_NEURONS
     area_type = partial(area_type, p_synapse=0.05, update='multiplicative',

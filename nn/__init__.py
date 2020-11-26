@@ -1,21 +1,18 @@
 r"""
 
-PyTorch implementation of `project` and `associate` operations [1]_.
-
-
 The forward pass is defined in two steps:
 
 .. math::
     \begin{cases}
-    \bold{y} = \sum_l W^{input}_l \bold{x}_l +
-               \alpha W^{recurrent}\bold{y}^{latent}
+    \bm{y} = \sum_l W^{input}_l \bm{x}_l +
+               \alpha W^{recurrent}\bm{y}^{latent}
     \\
-    \bold{y} = \text{kWTA}(\bold{y}, k)
+    \bm{y} = \text{kWTA}(\bm{y}, k)
     \end{cases}
     :label: forward
 
-where :math:`\bold{x}_l` are input stimuli from an incoming layer :math:`l`
-and :math:`\bold{y}^{latent}` are latent activations from a previous step;
+where :math:`\bm{x}_l` are input stimuli from an incoming layer :math:`l`
+and :math:`\bm{y}^{latent}` are latent activations from a previous step;
 :math:`k` is the number of active output neurons (winners).
 
 Assembly areas
@@ -53,13 +50,6 @@ Monitoring
     Monitor
     expected_random_overlap
     pairwise_similarity
-
-
-References
-----------
-.. [1] Papadimitriou, C. H., Vempala, S. S., Mitropolsky, D., Collins, M., &
-   Maass, W. (2020). Brain computation by assemblies of neurons. Proceedings of
-   the National Academy of Sciences.
 
 """
 

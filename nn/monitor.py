@@ -151,7 +151,8 @@ class Monitor:
             handle = layer.register_forward_hook(self._forward_hook)
             self.handles.append(handle)
 
-        env_name = f"{time.strftime('%Y.%m.%d')} {model.__class__.__name__}"
+        env_name = f"{time.strftime('%Y.%m.%d')} " \
+                   f"{model.__class__.__name__} assemblies"
         self.viz = VisdomBuffered(legend_labels=self.module_name.values(),
                                   env=env_name)
         self.log_expected_random_overlap()
@@ -310,12 +311,12 @@ class Monitor:
         Plot the :math:`L_{0/1}` similarity of the projected (learned)
         assemblies.
 
-        The similarity of two binary vectors :math:`\bold{x}` and
-        :math:`\bold{y}` of size `n` that have `k` active neurons is computed
+        The similarity of two binary vectors :math:`\bm{x}` and
+        :math:`\bm{y}` of size `n` that have `k` active neurons is computed
         as their dot product, divided by `k`:
 
         .. math::
-            \frac{\bold{x} \cdot \bold{y}}{k}
+            \frac{\bm{x} \cdot \bm{y}}{k}
 
         Parameters
         ----------
