@@ -7,6 +7,7 @@ PyTorch implementation of `project` and `associate` operations [1]_.
 .. toctree::
     :maxdepth: 1
 
+    install
     explanation
     usage
 
