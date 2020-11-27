@@ -3,9 +3,6 @@ Explanation
 
 .. py:currentmodule:: nn
 
-Infographic results are here: http://85.217.171.57:8097. Pick
-*"2020.11.26 AreaSequential assemblies"* experiment from the drop-down list.
-
 A recurrent area cell
 *********************
 
@@ -93,7 +90,7 @@ incoming areas, which is not covered in this tutorial.
 Input areas `A` and `B` can, of course, represent signals of the same modality
 that come from different cortical areas or layers.
 
-Example
+Results
 ~~~~~~~
 
 The example below shows area `C` activations, reshaped as matrices, when:
@@ -113,6 +110,9 @@ After:
 
 .. image:: images/after_association.png
     :width: 500
+
+More results are here: http://85.217.171.57:8097. Pick
+*"2020.11.26 AreaSequential assemblies"* experiment from the drop-down list.
 
 
 References
