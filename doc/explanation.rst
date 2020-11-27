@@ -84,7 +84,7 @@ Area `A` encodes images, and area `B` - sound. The output of `A` and `B` is
 projected onto area `C`, which forms a combined image-sound representation.
 After several such projections (forward passes), the assemblies `A-C` and `B-C`
 become more and more overlapping - significantly more than by chance. This
-process is called `association` and described in [1]_. Following this example,
+process is called `association` and described in [1]_. Following the example above,
 when areas `A` and `B` become associated, a sound an elephant makes will
 reconstruct a memory of elephant pictures (and vice versa), stored in `B`,
 assuming, of course, the presence of backward connections from area `C` to the

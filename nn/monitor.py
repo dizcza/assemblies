@@ -4,6 +4,8 @@ import math
 import numpy as np
 import time
 import torch
+from PIL import Image
+from torchvision import transforms
 
 from mighty.monitor.batch_timer import timer
 from mighty.monitor.viz import VisdomMighty
@@ -11,6 +13,7 @@ from mighty.utils.common import find_named_layers
 from nn.areas import AreaInterface, AreaRNN
 from nn.constants import K_ACTIVE, N_NEURONS
 from nn.graph import GraphArea
+from nn.utils import factors_root
 
 
 def expected_random_overlap(n, k):
@@ -345,6 +348,53 @@ class Monitor:
                 lines.append(f"--{name}: {similarity:.3f}")
             text = '<br>'.join(lines)
             self.viz.log(text=text)
+
+    def plot_associated_activations(self, ys_traces, ys_all_active,
+                                    learned=False):
+        """
+        Plot the output layer activations for each single trace (active input
+        area). Overlapping neurons are shown in green.
+
+        Parameters
+        ----------
+        ys_traces : (S, P, N) torch.Tensor
+            Stacked individual traces (output layer `C` activations). Axes:
+                1) `S` - the number of (learned) samples;
+
+                2) `P` - the number of incoming areas (parents);
+
+                3) `N` - the number of output neurons.
+        ys_all_active : (S, N) torch.Tensor
+            The output activations of layer `C` with all input areas active
+            (have input).
+        learned : bool, optional
+            Have the model areas been associated (True) or not? This flag
+            is used in the plots title only.
+            Default: False
+        """
+        learned_str = "after" if learned else "before"
+        rgb_green = torch.tensor([0, 1, 0], dtype=torch.float)
+
+        # (S, P+1, N)
+        images = torch.cat([ys_traces, ys_all_active.unsqueeze(dim=1)], dim=1)
+        row_size = images.shape[1]
+        # (S, P+1, 3, N)
+        images = images.unsqueeze(dim=2).repeat_interleave(3, dim=2)
+        mask_overlap = ys_traces.prod(dim=1)  # (S, N)
+        ii_overlap, jj_overlap = mask_overlap.nonzero(as_tuple=True)
+        images[ii_overlap, :-1, :, jj_overlap] = rgb_green
+        mask_overlap *= ys_all_active
+        ii_overlap_all, jj_overlap_all = mask_overlap.nonzero(as_tuple=True)
+        images[ii_overlap_all, -1, :, jj_overlap_all] = rgb_green
+        # (S * (P+1), 3, H, N/H)
+        images = images.view(-1, 3, *factors_root(images.shape[-1]))
+        resize = transforms.Resize(size=128, interpolation=Image.NEAREST)
+        images = resize(images)  # (S * (P+1), 3, ~128, ~128)
+        title = f"{learned_str}: A only | B only | all"
+        self.viz.images(images,
+                        win=f"activations {learned_str}",
+                        nrow=row_size,
+                        opts=dict(title=title))
 
     def log_model(self, space='-'):
         """

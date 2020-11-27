@@ -57,7 +57,7 @@ class Simulator:
             self.monitor.update_assembly_similarity(
                 input_similarity=pairwise_similarity(x_samples))
 
-    def associate_benchmark(self, x_samples):
+    def associate_benchmark(self, x_samples, learned=False):
         """
         Measure `associate` operation overlap between projected assemblies
         from two (or more) parent areas. Each assembly is projected
@@ -68,13 +68,16 @@ class Simulator:
         x_samples : list of tuple of torch.Tensor
             The input stimuli samples list. In this case, each entry must be
             a pair of vectors.
-
+        learned : bool, optional
+            Have the model areas been associated (True) or not? This flag
+            is used in the plots title only.
+            Default: False
         """
         assert isinstance(self.model, AreaSequential)
         mode_saved = self.model.training
         self.model.eval()
         n_parents = len(x_samples[0])
-        ys_parents = []
+        ys_traces = []  # individual traces
         for parent_active in range(n_parents):
             ys = []
             for x_pair in x_samples:
@@ -85,22 +88,32 @@ class Simulator:
                 ys.append(y)
             self.monitor.reset()  # we don't need the history
             ys = torch.stack(ys)  # (n_samples, n_neurons)
-            ys_parents.append(ys)
-        ys_parents = torch.stack(ys_parents, dim=1)  # (S, P, N)
-        pairwise = ys_parents.bmm(ys_parents.transpose(1, 2))  # (S, P, P)
+            ys_traces.append(ys)
+        ys_traces = torch.stack(ys_traces, dim=1)  # (S, P, N)
+
+        ys_all_active = torch.stack([self.model(x_pair)[0]
+                                     for x_pair in x_samples])
+        self.monitor.plot_associated_activations(ys_traces=ys_traces,
+                                                 ys_all_active=ys_all_active,
+                                                 learned=learned)
+
+        pairwise = ys_traces.bmm(ys_traces.transpose(1, 2))  # (S, P, P)
         ii, jj = torch.triu_indices(row=n_parents, col=n_parents, offset=1)
         similarity = pairwise[:, ii, jj].mean()
         similarity /= K_ACTIVE
-        self.monitor.viz.log(f"Learned assemblies inter-similarity: "
-                             f"{similarity:.3f}")
-        self.monitor.viz.scatter(X=[[timer.epoch + 1, similarity]], Y=[1],
-                                 win='similarity', name='A-B via C',
-                                 opts=self.monitor.viz.opts['similarity'],
-                                 update='append')
+
+        learned_str = "after" if learned else "before"
+        self.monitor.viz.log(f"Assemblies inter-similarity {learned_str} "
+                             f"learning: {similarity:.3f}")
+        if learned:
+            self.monitor.viz.scatter(X=[[timer.epoch + 1, similarity]], Y=[1],
+                                     win='similarity', name='A-B via C',
+                                     opts=self.monitor.viz.opts['similarity'],
+                                     update='append')
         self.model.train(mode_saved)
 
 
-def associate_example(n_samples=1, area_type=AreaRNNHebb):
+def associate_example(n_samples=5, area_type=AreaRNNHebb):
     n_stim_a, n_stim_b = N_NEURONS, N_NEURONS // 2
     na, nb, nc = N_NEURONS * 2, int(N_NEURONS * 1.5), N_NEURONS
     area_type = partial(area_type, p_synapse=0.05, update='multiplicative',
@@ -117,8 +130,9 @@ def associate_example(n_samples=1, area_type=AreaRNNHebb):
     simulator = Simulator(model=brain, epoch_size=10)
     simulator.simulate(x_samples=list(zip(xa_samples, [None] * n_samples)))
     simulator.simulate(x_samples=list(zip([None] * n_samples, xb_samples)))
+    simulator.associate_benchmark(x_samples=x_pairs, learned=False)
     simulator.simulate(x_samples=x_pairs)
-    simulator.associate_benchmark(x_samples=x_pairs)
+    simulator.associate_benchmark(x_samples=x_pairs, learned=True)
 
 
 def simulate_example(n_samples=10):
