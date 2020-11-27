@@ -7,13 +7,13 @@ import torch
 from PIL import Image
 from torchvision import transforms
 
+from assembly.areas import AreaInterface, AreaRNN
+from assembly.constants import K_ACTIVE, N_NEURONS
+from assembly.graph import GraphArea
+from assembly.utils import factors_root
 from mighty.monitor.batch_timer import timer
 from mighty.monitor.viz import VisdomMighty
 from mighty.utils.common import find_named_layers
-from nn.areas import AreaInterface, AreaRNN
-from nn.constants import K_ACTIVE, N_NEURONS
-from nn.graph import GraphArea
-from nn.utils import factors_root
 
 
 def expected_random_overlap(n, k):

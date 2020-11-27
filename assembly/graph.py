@@ -2,10 +2,10 @@ from collections import defaultdict, namedtuple
 
 import graphviz
 
+from assembly.areas import AreaRNN, AreaStack, AreaSequential, KWinnersTakeAll, \
+    AreaInterface
 from mighty.utils.common import find_named_layers
 from mighty.utils.hooks import get_layers_ordered
-from nn.areas import AreaRNN, AreaStack, AreaSequential, KWinnersTakeAll, \
-    AreaInterface
 
 
 class GraphArea:

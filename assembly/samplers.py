@@ -1,6 +1,6 @@
 import torch
 
-from nn.constants import K_ACTIVE, N_NEURONS
+from assembly.constants import K_ACTIVE, N_NEURONS
 
 __all__ = [
     "sample_bernoulli",

@@ -5,10 +5,9 @@ import torch
 import torch.nn as nn
 from abc import ABC, abstractmethod
 
+from assembly.constants import K_ACTIVE
+from assembly.samplers import sample_bernoulli
 from mighty.utils.common import find_layers
-from nn.constants import K_ACTIVE
-from nn.samplers import sample_bernoulli
-
 
 __all__ = [
     "KWinnersTakeAll",

@@ -2,35 +2,24 @@
 
 [![Documentation Status](https://readthedocs.org/projects/assemblies/badge/?version=latest)](https://assemblies.readthedocs.io/en/latest/?badge=latest)
 
-## Installation
+This repository contains PyTorch implementation of the *project* and *associate* operations (Papadimitrioua et al., 2020).
+
+Documentation: https://assemblies.readthedocs.io/en/latest
+
+The visualization of `assembly/simulate.py` is at http://85.217.171.57:8097. Pick
+*"2020.11.26 AreaSequential assemblies"* experiment from the drop-down list.
+
+To reproduce the original repository, switch to [original](https://github.com/dizcza/assemblies/tree/original) branch.
+
+## Quick start
 
 ```
 pip install -r requirements.txt
+python assembly/simulate.py
 ```
 
-## NN module
+## References
 
-`nn` module contains PyTorch implementation of _project_ and _associate_ operations.
-
-The visualization of `nn/simulate.py` is at http://85.217.171.57:8097. Pick
-*"2020.11.26 AreaSequential assemblies"* experiment from the drop-down list.
-
-## Original repository
-
-The reproducible version of the Assembly Calculus ([Papadimitrioua et al., 2020](https://www.pnas.org/content/pnas/early/2020/06/08/2001893117.full.pdf)) with the minimum invasion of the [original repository](https://github.com/dmitropolsky/assemblies).
-
-
-### Reproducing the original plots
-
-```
-python simulations.py
-```
-
-Figures will be saved in the `plots` directory.
-
-If you want to reproduce the figures from scratch, delete the `results` folder
-before running the simulations.
-
-### Original README
-
-This repository contains code for simulating operations in the assembly model of brain computation.
+1. Papadimitriou, C. H., Vempala, S. S., Mitropolsky, D., Collins, M., &
+   Maass, W. (2020). Brain computation by assemblies of neurons. Proceedings of
+   the National Academy of Sciences.

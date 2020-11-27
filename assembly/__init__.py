@@ -18,7 +18,7 @@ and :math:`\bm{y}^{latent}` are latent activations from a previous step;
 Assembly areas
 --------------
 .. autosummary::
-    :toctree: toctree/nn
+    :toctree: toctree/assembly
 
     AreaRNNHebb
     AreaRNNWillshaw
@@ -29,7 +29,7 @@ Assembly areas
 Activation function
 -------------------
 .. autosummary::
-    :toctree: toctree/nn
+    :toctree: toctree/assembly
 
     KWinnersTakeAll
 
@@ -37,7 +37,7 @@ Activation function
 Train and simulate
 ------------------
 .. autosummary::
-    :toctree: toctree/nn
+    :toctree: toctree/assembly
 
     Simulator
 
@@ -45,7 +45,7 @@ Train and simulate
 Monitoring
 ----------
 .. autosummary::
-    :toctree: toctree/nn
+    :toctree: toctree/assembly
 
     Monitor
     expected_random_overlap

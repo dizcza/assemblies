@@ -1,7 +1,7 @@
 Explanation
 ===========
 
-.. py:currentmodule:: nn
+.. py:currentmodule:: assembly
 
 A recurrent area cell
 *********************

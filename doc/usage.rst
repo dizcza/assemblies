@@ -3,7 +3,7 @@
 Usage
 =====
 
-.. automodule:: nn
+.. automodule:: assembly
 
 
 Example
@@ -13,9 +13,9 @@ Associate script:
 
 .. code-block:: python
 
-    from nn.areas import *
-    from nn.samplers import sample_k_active
-    from nn.simulate import Simulator
+    from assembly.areas import *
+    from assembly.samplers import sample_k_active
+    from assembly.simulate import Simulator
 
     N_NEURONS, K_ACTIVE = 1000, 50
 
@@ -33,4 +33,4 @@ Associate script:
     simulator.simulate(x_samples=[stim_ab])
 
 
-More examples are in `nn/simulate.py <https://github.com/dizcza/assemblies/blob/master/nn/simulate.py>`_
+More examples are in `assembly/simulate.py <https://github.com/dizcza/assemblies/blob/master/assembly/simulate.py>`_

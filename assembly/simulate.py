@@ -2,11 +2,11 @@ import torch
 from functools import partial
 from tqdm import tqdm
 
+from assembly.areas import *
+from assembly.constants import K_ACTIVE, N_NEURONS
+from assembly.monitor import Monitor, pairwise_similarity
+from assembly.samplers import *
 from mighty.monitor.batch_timer import timer
-from nn.areas import *
-from nn.constants import K_ACTIVE, N_NEURONS
-from nn.monitor import Monitor, pairwise_similarity
-from nn.samplers import *
 
 
 class Simulator:
