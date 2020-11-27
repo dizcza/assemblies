@@ -93,6 +93,28 @@ incoming areas, which is not covered in this tutorial.
 Input areas `A` and `B` can, of course, represent signals of the same modality
 that come from different cortical areas or layers.
 
+Example
+~~~~~~~
+
+The example below shows area `C` activations, reshaped as matrices, when:
+  - left: only `A` is active;
+  - middle: only `B` is active;
+  - right: both `A` and `B` are active.
+
+before and after the association mechanism described above. Overlapping
+neurons are shown in green.
+
+Before:
+
+.. image:: images/before_association.png
+    :width: 500
+
+After:
+
+.. image:: images/after_association.png
+    :width: 500
+
+
 References
 ----------
 
