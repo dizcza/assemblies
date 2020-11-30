@@ -32,7 +32,7 @@ condition must hold in order to restore the input signal.
     :width: 300
 
 This example shows that a random projection & cut operation (kWTA followed by
-a multiplication by a random matrix) preserves enough information to
+multiplication by a random matrix) preserves enough information to
 reconstruct the input signal.
 
 
@@ -47,7 +47,7 @@ Willshaw's model
 
 Let's define the task in mathematical terms: let `x` and `y` denote the image
 and the sound representation vectors of a signal respectively. Then the
-simplest way to associate `x` and `y` is to resort to Hebbian-like learning
+simplest way to associate `x` and `y` is to resort to the Hebbian-like learning
 rule. Assuming both `x` and `y` are binary sparse vectors, we can construct
 the weight matrix as an outer product of `x` and `y`. This technique is
 described in [2]_ and implemented in :class:`AreaRNNWillshaw`.
@@ -93,10 +93,12 @@ that come from different cortical areas or layers.
 Results
 ~~~~~~~
 
-The example below shows area `C` activations, reshaped as matrices, when:
-  - left: only `A` is active;
-  - middle: only `B` is active;
-  - right: both `A` and `B` are active.
+The example below shows area `C` activations, reshaped as matrices, when (from
+left to right):
+
+  - only `A` is active;
+  - only `B` is active;
+  - both `A` and `B` are active.
 
 before and after the association mechanism described above. Overlapping
 neurons are shown in green.
@@ -111,8 +113,15 @@ After:
 .. image:: images/after_association.png
     :width: 500
 
+
+More results
+^^^^^^^^^^^^
+
 More results are here: http://85.217.171.57:8097. Pick
 *"2020.11.26 AreaSequential assemblies"* experiment from the drop-down list.
+
+.. image:: images/screenshot.png
+    :width: 700
 
 
 References

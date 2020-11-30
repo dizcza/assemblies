@@ -19,7 +19,7 @@ class GraphArea:
     def draw_model(self, model: AreaInterface, sample):
         if isinstance(model, AreaRNN):
             # a single area layer
-            ordered = {model: 0}
+            ordered = [model]
         else:
             model_mode = model.training
             model.eval()
