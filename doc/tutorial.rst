@@ -1,5 +1,5 @@
-Explanation
-===========
+Tutorial
+========
 
 .. py:currentmodule:: assembly
 

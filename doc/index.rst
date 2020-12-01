@@ -8,7 +8,7 @@ PyTorch implementation of `project` and `associate` operations [1]_.
     :maxdepth: 1
 
     install
-    explanation
+    tutorial
     usage
 
 
