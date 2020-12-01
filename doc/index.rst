@@ -9,6 +9,7 @@ PyTorch implementation of `project` and `associate` operations [1]_.
 
     install
     tutorial
+    kaggle
     usage
 
 

@@ -1,3 +1,5 @@
+.. _tutorial:
+
 Tutorial
 ========
 
@@ -10,7 +12,7 @@ A recurrent area cell
     :width: 300
 
 The building block of computation with assemblies [1]_ is a recurrent neural
-network cell, called *area*, the forward pass of which is described in
+network cell, called *area*, the forward pass of which is described in the
 :ref:`usage`. The output of such an area is a binary sparse vector, formed by
 winner-take-all competition. For example, if an input vector multiplied by a
 weight yields vector :code:`z = [-3.2, 4.6, 0, 0.7, 1.9]`, then
