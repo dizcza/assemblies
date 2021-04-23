@@ -1,4 +1,6 @@
+import warnings
 from collections import defaultdict, namedtuple
+from functools import wraps
 
 import graphviz
 
@@ -6,6 +8,18 @@ from assembly.areas import AreaRNN, AreaStack, AreaSequential, KWinnersTakeAll, 
     AreaInterface
 from mighty.utils.common import find_named_layers
 from mighty.utils.hooks import get_layers_ordered
+
+
+def graphviz_notify_if_not_installed(func):
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except graphviz.backend.ExecutableNotFound as error:
+            warnings.warn("Run 'sudo apt-get install graphviz' command in a "
+                          "terminal to use graphviz features.")
+            warnings.warn(repr(error))
+    return wrapped
 
 
 class GraphArea:

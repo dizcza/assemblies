@@ -2,14 +2,16 @@
 
 [![Documentation Status](https://readthedocs.org/projects/assemblies/badge/?version=latest)](https://assemblies.readthedocs.io/en/latest/?badge=latest)
 
-This repository contains PyTorch implementation of the *project* and *associate* operations (Papadimitrioua et al., 2020).
+The PyTorch implementation of the *project* and *associate* operations [1].
 
 Documentation: https://assemblies.readthedocs.io/en/latest
 
 The visualization of `assembly/simulate.py` is at http://85.217.171.57:8097. Pick
 *"2020.11.26 AreaSequential assemblies"* experiment from the drop-down list.
 
-To reproduce the original repository, switch to [original](https://github.com/dizcza/assemblies/tree/original) branch.
+<img src="doc/images/screenshot.png" alt="screenshot" width="500"/>
+
+To reproduce the figures from the paper, switch to the [original](https://github.com/dizcza/assemblies/tree/original) (old) branch.
 
 ## Quick start
 

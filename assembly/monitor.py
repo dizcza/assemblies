@@ -1,19 +1,19 @@
+import math
+import time
 from collections import defaultdict
 
-import math
 import numpy as np
-import time
 import torch
-from PIL import Image
-from torchvision import transforms
-
-from assembly.areas import AreaInterface, AreaRNN
-from assembly.constants import K_ACTIVE, N_NEURONS
-from assembly.graph import GraphArea
-from assembly.utils import factors_root
 from mighty.monitor.batch_timer import timer
 from mighty.monitor.viz import VisdomMighty
 from mighty.utils.common import find_named_layers
+from torchvision import transforms
+from torchvision.transforms import InterpolationMode
+
+from assembly.areas import AreaInterface, AreaRNN
+from assembly.constants import K_ACTIVE, N_NEURONS
+from assembly.graph import GraphArea, graphviz_notify_if_not_installed
+from assembly.utils import factors_root
 
 
 def expected_random_overlap(n, k):
@@ -82,22 +82,22 @@ class VisdomBuffered(VisdomMighty):
         self.opts = {'recall': dict(
             xlabel='Epoch',
             ylabel='overlap',
-            legend=legend_labels,
+            legend=list(legend_labels),
             title='recall (y_pred, y_learned)',
         ), 'convergence': dict(
             xlabel='Epoch',
             ylabel='overlap',
-            legend=legend_labels,
+            legend=list(legend_labels),
             title='convergence (y, y_prev)',
         ), 'support': dict(
             xlabel='Epoch',
             ylabel='support',
-            legend=legend_labels,
+            legend=list(legend_labels),
             title='support size across epoch trials'
         ), 'similarity': dict(
             xlabel='Epoch',
             ylabel='similarity',
-            legend=self._legend_labels,
+            legend=list(self._legend_labels),
             title="Learned assemblies intra- and inter-similarity",
             markers=True,
             markersize=8,
@@ -149,7 +149,7 @@ class Monitor:
         self.handles = []
         self.module_name = dict()
         for name, layer in find_named_layers(model, layer_class=AreaRNN):
-            self.module_name[layer] = f"{name}-{layer.__class__.__name__}"\
+            self.module_name[layer] = f"{name}-{layer.__class__.__name__}" \
                 .lstrip('-')
             handle = layer.register_forward_hook(self._forward_hook)
             self.handles.append(handle)
@@ -161,6 +161,7 @@ class Monitor:
         self.log_expected_random_overlap()
         self.log_model()
         self.draw_model()
+        self.reset()
 
     def _forward_hook(self, module, input, output):
         name = self.module_name[module]
@@ -242,7 +243,7 @@ class Monitor:
         self.viz.line_update(y=values, opts=dict(
             xlabel='Epoch',
             title=r"Memory used (L0 norm)",
-            legend=names,
+            legend=list(names),
         ))
 
     def assembly_similarity(self):
@@ -388,7 +389,8 @@ class Monitor:
         images[ii_overlap_all, -1, :, jj_overlap_all] = rgb_green
         # (S * (P+1), 3, H, N/H)
         images = images.view(-1, 3, *factors_root(images.shape[-1]))
-        resize = transforms.Resize(size=128, interpolation=Image.NEAREST)
+        resize = transforms.Resize(size=128,
+                                   interpolation=InterpolationMode.NEAREST)
         images = resize(images)  # (S * (P+1), 3, ~128, ~128)
         title = f"{learned_str}: A only | B only | all"
         self.viz.images(images,
@@ -414,6 +416,7 @@ class Monitor:
         lines = '<br>'.join(lines)
         self.viz.log(lines)
 
+    @graphviz_notify_if_not_installed
     def draw_model(self, sample=None):
         """
         Draw the model graph.
@@ -427,7 +430,6 @@ class Monitor:
         graph = GraphArea()
         svg = graph.draw_model(self.model, sample=sample)
         self.viz.svg(svgstr=svg, win='graph')
-        self.reset()
 
     def update_weight_histogram(self):
         """
