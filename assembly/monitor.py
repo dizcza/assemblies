@@ -262,7 +262,7 @@ class Monitor:
                 similarity[name] = pairwise_similarity(y_learned)
         return similarity
 
-    def trial_finished(self, x_samples_learned):
+    def trial_finished(self, x_samples_learned, step):
         """
         A sample is being learned callback.
 
@@ -272,12 +272,16 @@ class Monitor:
             A list of learned input vectors to recall. Each entry can be either
             a single vector tensor (one incoming area) or a tuple of tensors
             (multiple incoming areas).
+        step : int
+            The batch ID.
         """
         self._update_convergence()
         self._update_support()
         self.ys_previous = self.ys_output.copy()
         self.ys_output.clear()
-        self._update_recall(x_samples_learned)
+        if step != 0:
+            # skip the first batch since the recall is exactly 'k'
+            self._update_recall(x_samples_learned)
 
     def epoch_finished(self):
         """

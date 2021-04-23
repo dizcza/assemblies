@@ -49,7 +49,8 @@ class Simulator:
                 else:
                     y_prev = y
                 timer.tick()
-                self.monitor.trial_finished(x_samples[:sample_count])
+                self.monitor.trial_finished(x_samples[:sample_count],
+                                            step=step)
             self.model.normalize_weights()
             self.monitor.epoch_finished()
 
