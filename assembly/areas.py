@@ -122,6 +122,12 @@ class AreaInterface(nn.Module, ABC):
     def normalize_weights(self):
         """
         Normalize the pre-synaptic weights sum to ``1.0``.
+
+        Without the normalization, all inputs converge to the same output
+        vector determined by the lateral weights because the sum
+        ``w_xy @ x + w_lat @ y`` favors the second element. Normalization of
+        the feedforward and lateral weights makes ``w_xy @ x`` and
+        ``w_lat @ y`` of the same magnitude.
         """
         for module in find_layers(self, layer_class=AreaRNN):
             for weight in module.parameters(recurse=False):

@@ -22,9 +22,9 @@ class Simulator:
         Each trial sample represent a complete epoch.
         Default: 10
     """
-    def __init__(self, model, epoch_size=10):
+    def __init__(self, model, epoch_size=10, env_suffix=''):
         self.model = model
-        self.monitor = Monitor(model)
+        self.monitor = Monitor(model, env_suffix=env_suffix)
         self.epoch_size = epoch_size
         timer.init(epoch_size)
 

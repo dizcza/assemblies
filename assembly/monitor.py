@@ -40,7 +40,7 @@ def expected_random_overlap(n, k):
 
 def pairwise_similarity(tensors):
     """
-    Computes the pairwise similarity of the tensors.
+    Computes the pairwise similarity overlap of the tensors.
 
     Parameters
     ----------
@@ -98,7 +98,7 @@ class VisdomBuffered(VisdomMighty):
             xlabel='Epoch',
             ylabel='similarity',
             legend=list(self._legend_labels),
-            title="Learned assemblies intra- and inter-similarity",
+            title="Learned assemblies pairwise similarity overlap",
             markers=True,
             markersize=8,
         )}
@@ -138,7 +138,7 @@ class Monitor:
         A NN model, consisting of one or more areas.
     """
 
-    def __init__(self, model):
+    def __init__(self, model, env_suffix=''):
         self.model = model
 
         self.ys_output = dict()
@@ -156,6 +156,8 @@ class Monitor:
 
         env_name = f"{time.strftime('%Y.%m.%d')} " \
                    f"{model.__class__.__name__} assemblies"
+        if env_suffix:
+            env_name = f"{env_name} {env_suffix}"
         self.viz = VisdomBuffered(legend_labels=self.module_name.values(),
                                   env=env_name)
         self.log_expected_random_overlap()
